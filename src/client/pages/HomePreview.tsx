@@ -1,10 +1,11 @@
 /**
- * 첫 화면의 제품 미리보기. 실제 도형 렌더러로 예시 다이어그램을 그리고 그 위에 협업 커서를 얹는다.
+ * 첫 화면의 제품 화면 예시. 실제 도형 렌더러와 도구 아이콘으로 방 화면을 축소해 그린다.
  * 장식용이라 조작은 받지 않는다.
  */
 import { diagramBounds } from '../../shared/geometry';
-import type { ErdEdge, ErdNode } from '../../shared/types';
+import type { ErdEdge, ErdNode, PresetId } from '../../shared/types';
 import { DiagramContent } from '../canvas/DiagramContent';
+import { PresetIcon } from '../canvas/PresetIcon';
 
 const NODES: ErdNode[] = [
   { id: 'stu', kind: 'entity', x: 60, y: 150, w: 120, h: 56, text: '학생' },
@@ -47,49 +48,74 @@ const EDGES: ErdEdge[] = [
   edge('s3', 'sp', 'gr'),
 ];
 
-/** 미리보기에 등장하는 가상의 팀원 */
+/** 예시 화면에 함께 들어와 있는 팀원 */
 const MATES = [
   { name: '지민', color: '#E5484D' },
   { name: '서연', color: '#12A594' },
   { name: '도윤', color: '#8E4EC6' },
 ];
 
-function Cursor({ name, color, className }: { name: string; color: string; className: string }) {
+const TOOLS: PresetId[] = [
+  'entity',
+  'weak-entity',
+  'relationship',
+  'identifying-relationship',
+  'attribute',
+  'key-attribute',
+  'multivalued-attribute',
+  'derived-attribute',
+  'spec-d',
+];
+
+/** 이름표가 달린 포인터. 이 제품의 표식이라 첫 화면에서는 여기와 내 프로필에서만 쓴다 */
+export function NamedCursor({ name, color, className, style }: { name: string; color: string; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={`home-preview-cursor ${className}`} aria-hidden="true">
+    <span className={className ? `home-cursor ${className}` : 'home-cursor'} style={style} aria-hidden="true">
       <svg width="18" height="18" viewBox="0 0 20 20">
         <path d="M3 2l5.2 14.2 2.3-5.9 5.9-2.3z" fill={color} stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
       </svg>
-      <span style={{ background: color }}>{name}</span>
-    </div>
+      <span className="home-cursor-name" style={{ background: color }}>
+        {name}
+      </span>
+    </span>
   );
 }
 
 export function HomePreview() {
-  const b = diagramBounds(NODES, 26) ?? { x: 0, y: 0, w: 640, h: 400 };
+  const b = diagramBounds(NODES, 28) ?? { x: 0, y: 0, w: 640, h: 400 };
   const picked = NODES.find((n) => n.id === 'take')!;
   return (
-    <figure className="home-preview" aria-label="제품 화면 예시">
-      <div className="home-preview-bar" aria-hidden="true">
-        <span className="home-preview-dots">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="home-preview-title">수강 관리 ERD</span>
-        <span className="home-preview-mates">
+    <figure className="home-pv" aria-label="제품 화면 예시">
+      <div className="home-pv-top" aria-hidden="true">
+        <span className="home-pv-title">수강 관리</span>
+        <span className="home-pv-saved">저장됨</span>
+        <span className="home-pv-mates">
           {MATES.map((m) => (
             <b key={m.name} style={{ background: m.color }}>
               {m.name.slice(0, 1)}
             </b>
           ))}
         </span>
+        <span className="home-pv-share">공유</span>
       </div>
-      <div className="home-preview-body">
-        <svg viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} role="img" aria-label="학생과 과목, 분반으로 이루어진 예시 ER 다이어그램">
-          <DiagramContent nodes={NODES} edges={EDGES} />
-          {/* 다른 팀원이 선택한 도형 표시 */}
-          <g pointerEvents="none">
+      <div className="home-pv-body">
+        <div className="home-pv-tools" aria-hidden="true">
+          <span className="home-pv-tool is-active">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+              <path d="M5 3l4.6 12 1.9-5 5-1.9z" />
+            </svg>
+          </span>
+          {TOOLS.map((id) => (
+            <span key={id} className="home-pv-tool">
+              <PresetIcon presetId={id} size={18} />
+            </span>
+          ))}
+        </div>
+        <div className="home-pv-canvas">
+          <div className="home-pv-stage">
+          <svg viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} role="img" aria-label="학생과 과목, 분반으로 이루어진 예시 ER 다이어그램">
+            <DiagramContent nodes={NODES} edges={EDGES} />
+            {/* 다른 팀원이 선택한 도형 */}
             <rect
               x={picked.x - 5}
               y={picked.y - 5}
@@ -99,15 +125,13 @@ export function HomePreview() {
               fill="none"
               stroke={MATES[0].color}
               strokeWidth="1.6"
+              pointerEvents="none"
             />
-            <rect x={picked.x - 5} y={picked.y - 24} width="38" height="17" rx="4" fill={MATES[0].color} />
-            <text x={picked.x + 14} y={picked.y - 11.5} textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#fff">
-              {MATES[0].name}
-            </text>
-          </g>
-        </svg>
-        <Cursor name={MATES[0].name} color={MATES[0].color} className="is-a" />
-        <Cursor name={MATES[1].name} color={MATES[1].color} className="is-b" />
+          </svg>
+          <NamedCursor name={MATES[0].name} color={MATES[0].color} style={{ left: '50%', top: '53%' }} />
+          <NamedCursor name={MATES[1].name} color={MATES[1].color} style={{ left: '35%', top: '62%' }} />
+          </div>
+        </div>
       </div>
     </figure>
   );
