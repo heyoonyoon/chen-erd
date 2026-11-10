@@ -78,7 +78,7 @@ function sanitizeEdge(raw: unknown): ErdEdge | null {
   if (!isRecord(raw)) return null;
   const { id, source, target } = raw;
   if (typeof id !== 'string' || typeof source !== 'string' || typeof target !== 'string') return null;
-  return {
+  const edge: ErdEdge = {
     id,
     source,
     target,
@@ -86,6 +86,11 @@ function sanitizeEdge(raw: unknown): ErdEdge | null {
     label: typeof raw.label === 'string' ? raw.label : '',
     role: typeof raw.role === 'string' ? raw.role : '',
   };
+  const isSide = (v: unknown): v is NonNullable<ErdEdge['sourceSide']> => v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
+  if (isSide(raw.sourceSide)) edge.sourceSide = raw.sourceSide;
+  if (isSide(raw.targetSide)) edge.targetSide = raw.targetSide;
+  if (raw.shape === 'straight' || raw.shape === 'elbow') edge.shape = raw.shape;
+  return edge;
 }
 
 /** 클립보드 글자를 해석한다. 이 도구에서 복사한 것이 아니면 null */

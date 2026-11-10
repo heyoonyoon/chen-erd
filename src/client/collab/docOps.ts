@@ -11,7 +11,7 @@
  */
 import * as Y from 'yjs';
 import { nanoid } from 'nanoid';
-import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId } from '../../shared/types';
+import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId, type Side } from '../../shared/types';
 
 export const LOCAL_ORIGIN = 'local';
 
@@ -47,7 +47,7 @@ export function readNode(m: Y.Map<unknown>): ErdNode {
 
 export function readEdge(m: Y.Map<unknown>): ErdEdge {
   const o = m.toJSON() as Partial<ErdEdge>;
-  return {
+  const edge: ErdEdge = {
     id: String(o.id ?? ''),
     source: String(o.source ?? ''),
     target: String(o.target ?? ''),
@@ -55,6 +55,14 @@ export function readEdge(m: Y.Map<unknown>): ErdEdge {
     label: String(o.label ?? ''),
     role: String(o.role ?? ''),
   };
+  if (isSide(o.sourceSide)) edge.sourceSide = o.sourceSide;
+  if (isSide(o.targetSide)) edge.targetSide = o.targetSide;
+  if (o.shape === 'straight' || o.shape === 'elbow') edge.shape = o.shape;
+  return edge;
+}
+
+function isSide(v: unknown): v is Side {
+  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
 }
 
 export function getNodes(doc: Y.Doc): ErdNode[] {

@@ -20,10 +20,13 @@ const HIT_WIDTH = 14;
 const HIGHLIGHT_COLOR = '#f59e0b';
 const ROLE_FONT_SIZE = STYLE.labelFontSize - 2;
 
-/** 역할 이름이 선의 옆쪽에 놓이면 선에서 멀어지는 방향으로 글자가 뻗게 한다 */
+/**
+ * 역할 이름이 선의 옆쪽에 놓이면 선에서 멀어지는 방향으로 글자가 뻗게 한다.
+ * 카디널리티 글자에서 역할 이름으로 가는 방향이 곧 선에서 멀어지는 방향이다.
+ */
 function roleAnchor(geometry: EdgeGeometry): 'start' | 'middle' | 'end' {
-  const dx = geometry.rolePos.x - geometry.mid.x;
-  const dy = geometry.rolePos.y - geometry.mid.y;
+  const dx = geometry.rolePos.x - geometry.labelPos.x;
+  const dy = geometry.rolePos.y - geometry.labelPos.y;
   const len = Math.hypot(dx, dy);
   if (!(len > 0) || Math.abs(dx) < len * 0.3) return 'middle';
   return dx > 0 ? 'start' : 'end';
@@ -41,6 +44,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           strokeOpacity={0.45}
           strokeWidth={10}
           strokeLinecap="round"
+          strokeLinejoin="round"
           pointerEvents="none"
         />
       )}
@@ -52,6 +56,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           strokeOpacity={0.25}
           strokeWidth={STYLE.doubleGap + STYLE.strokeWidth + 3}
           strokeLinecap="round"
+          strokeLinejoin="round"
           pointerEvents="none"
         />
       )}
@@ -63,6 +68,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           stroke={color}
           strokeWidth={STYLE.strokeWidth}
           strokeLinecap="butt"
+          strokeLinejoin="miter"
           pointerEvents="none"
         />
       ))}
@@ -73,6 +79,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
         stroke="transparent"
         strokeWidth={HIT_WIDTH}
         strokeLinecap="butt"
+        strokeLinejoin="round"
         pointerEvents="stroke"
       />
       {edge.label && (

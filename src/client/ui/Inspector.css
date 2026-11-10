@@ -53,6 +53,9 @@
 .inspector-edge-name, .inspector-summary { padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600; }
 .inspector-edge-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspector-cardinality { display: flex; flex-direction: column; gap: var(--gap); }
+.inspector-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspector-segmented > button > svg { display: block; margin: 0 auto; }
+.inspector-reset { align-self: flex-end; height: 26px; padding: 0 8px; font-size: 12px; color: var(--text-dim); }
 
 /* 정렬 */
 .inspector-align { display: flex; gap: 4px; }

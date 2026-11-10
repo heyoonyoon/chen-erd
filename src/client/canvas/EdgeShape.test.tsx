@@ -53,6 +53,18 @@ describe('EdgeShape', () => {
     expect(html).not.toContain(`stroke="${STYLE.stroke}"`);
   });
 
+  it('꺾은선: 모서리를 각지게 잇고 이중선도 꺾인 두 줄로 그린다', () => {
+    const edge: ErdEdge = { id: 'e2', source: 'a', target: 'b', double: true, label: 'N', role: '', sourceSide: 'top', targetSide: 'top' };
+    const geometry = computeEdgeGeometry(edge, a, b);
+    expect(geometry.points.length).toBeGreaterThan(2);
+    const html = renderToStaticMarkup(<EdgeShape edge={edge} geometry={geometry} />);
+    expect(count(html, 'path')).toBe(3);
+    expect(html).toContain('stroke-linejoin="miter"');
+    for (const d of geometry.paths) expect(html).toContain(`d="${d}"`);
+    expect(html).toContain(`d="${geometry.hitPath}"`);
+    expect(html).not.toContain('NaN');
+  });
+
   it('hovered와 highlighted는 뒤에 반투명 선을 깐다', () => {
     const edge: ErdEdge = { id: 'e1', source: 'a', target: 'b', double: false, label: '', role: '' };
     expect(count(render(edge, { hovered: true }), 'path')).toBe(3);

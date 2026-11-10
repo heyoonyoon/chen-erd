@@ -93,11 +93,16 @@ export function useMyPresence(): Presence | null {
 /** 서버 연결 상태 */
 export function useConnectionStatus(): ConnectionStatus {
   const room = useRoom();
-  const [status, setStatus] = useState<ConnectionStatus>(() => (room.provider.wsconnected ? 'connected' : 'connecting'));
+  const read = (): ConnectionStatus =>
+    room.provider.wsconnected ? 'connected' : room.provider.wsconnecting ? 'connecting' : 'disconnected';
+  const [status, setStatus] = useState<ConnectionStatus>(read);
   useEffect(() => {
     const onStatus = (e: { status: ConnectionStatus }) => setStatus(e.status);
     room.provider.on('status', onStatus);
+    // 첫 렌더와 구독 사이에 연결이 끝났을 수 있으므로 구독한 뒤 한 번 더 읽는다
+    setStatus(read());
     return () => room.provider.off('status', onStatus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
   return status;
 }

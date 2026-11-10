@@ -1,7 +1,16 @@
 /**
  * 인스펙터의 계산 부분(순수 함수). 문서나 DOM을 건드리지 않고 패치만 만든다. [담당: inspector 에이전트]
  */
-import { MIN_NODE_SIZE, NODE_PRESETS, presetOf, type ErdNode, type KeyType, type PresetId } from '../../shared/types';
+import {
+  MIN_NODE_SIZE,
+  NODE_PRESETS,
+  presetOf,
+  type EdgeShapeKind,
+  type ErdEdge,
+  type ErdNode,
+  type KeyType,
+  type PresetId,
+} from '../../shared/types';
 import type { NodePatch } from '../collab/docOps';
 
 export interface NodePatchEntry {
@@ -161,6 +170,21 @@ export function edgeNature(source: ErdNode | undefined, target: ErdNode | undefi
   if (kinds.has('relationship')) return 'entity-relationship';
   if (kinds.has('spec')) return 'entity-spec';
   return 'other';
+}
+
+/**
+ * 선 모양이 자동(shape 없음)일 때 실제로 그려지는 모양.
+ * 규칙: 직접 고른 모양이 있으면 그 모양. 없으면 붙는 면이 하나라도 지정된 선과
+ * 엔티티와 관계 사이의 선은 꺾은선, 그 밖의 선(속성 선, 특수화 선)은 직선.
+ */
+export function resolveEdgeShape(
+  edge: Pick<ErdEdge, 'shape' | 'sourceSide' | 'targetSide'>,
+  source: ErdNode | undefined,
+  target: ErdNode | undefined,
+): EdgeShapeKind {
+  if (edge.shape === 'straight' || edge.shape === 'elbow') return edge.shape;
+  if (edge.sourceSide || edge.targetSide) return 'elbow';
+  return edgeNature(source, target) === 'entity-relationship' ? 'elbow' : 'straight';
 }
 
 /** 여러 값이 모두 같으면 그 값, 섞여 있거나 비어 있으면 null. */

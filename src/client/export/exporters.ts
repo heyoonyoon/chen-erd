@@ -66,7 +66,8 @@ function edgeExtents(nodes: ErdNode[], edges: ErdEdge[]): Rect[] {
       const g = computeEdgeGeometry(e, s, t, sib.index, sib.count);
       // 선 자체(휘어 그린 선은 노드 범위 밖으로 나갈 수 있다)
       const line = STYLE.doubleGap + STYLE.strokeWidth;
-      for (const p of [g.start, g.end, g.mid]) if (isFinitePoint(p)) around(p, line, line);
+      // 꺾은선은 도형을 돌아가느라 노드 범위 밖으로 나갈 수 있으므로 지나는 점을 모두 넣는다
+      for (const p of [g.start, g.end, g.mid, ...(g.points ?? [])]) if (isFinitePoint(p)) around(p, line, line);
       if (isFinitePoint(g.control) && isFinitePoint(g.start) && isFinitePoint(g.end)) {
         // 2차 베지어의 가운데 점
         around({ x: (g.start.x + 2 * g.control.x + g.end.x) / 4, y: (g.start.y + 2 * g.control.y + g.end.y) / 4 }, line, line);
@@ -373,7 +374,17 @@ export function toErdFile(doc: Y.Doc): ErdFile {
   // 끝이 사라진 선(동시 편집 중에 생길 수 있다)은 다시 불러올 수 없으므로 담지 않는다
   const edges = getEdges(doc)
     .filter((e) => e.id !== '' && ids.has(e.source) && ids.has(e.target))
-    .map((e) => ({ id: e.id, source: e.source, target: e.target, double: e.double, label: e.label, role: e.role }));
+    .map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      double: e.double,
+      label: e.label,
+      role: e.role,
+      ...(e.sourceSide ? { sourceSide: e.sourceSide } : {}),
+      ...(e.targetSide ? { targetSide: e.targetSide } : {}),
+      ...(e.shape ? { shape: e.shape } : {}),
+    }));
   return { format: 'chen-erd', version: 1, title: getTitle(doc), nodes, edges };
 }
 
@@ -481,7 +492,16 @@ function parseEdge(raw: unknown, index: number, seen: Set<string>, nodeIds: Set<
     if (typeof raw.double !== 'boolean') fail(`${at}의 double 값은 true 또는 false여야 합니다. (현재 값: ${show(raw.double)})`);
     double = raw.double as boolean;
   }
-  return { id, source, target, double, label: readText(raw.label, `${at}의 label`), role: readText(raw.role, `${at}의 role`) };
+  const edge: ErdEdge = { id, source, target, double, label: readText(raw.label, `${at}의 label`), role: readText(raw.role, `${at}의 role`) };
+  // 선이 붙는 면과 선 모양은 선택 항목이다. 모르는 값은 버리고 자동으로 둔다
+  if (isSideValue(raw.sourceSide)) edge.sourceSide = raw.sourceSide;
+  if (isSideValue(raw.targetSide)) edge.targetSide = raw.targetSide;
+  if (raw.shape === 'straight' || raw.shape === 'elbow') edge.shape = raw.shape;
+  return edge;
+}
+
+function isSideValue(v: unknown): v is NonNullable<ErdEdge['sourceSide']> {
+  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
 }
 
 /** 텍스트를 ErdFile로 해석하고 검사한다. 형식이 틀리면 한국어 메시지와 함께 Error를 던진다. */

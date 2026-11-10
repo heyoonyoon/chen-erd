@@ -371,3 +371,107 @@ describe('여러 개 선택', () => {
     expect(Array.from(getNodesMap(room.doc).keys())).toEqual(['c']);
   });
 });
+
+describe('선이 붙는 위치와 선 모양', () => {
+  const nodes = () => [n('학생', 'entity'), n('수강', 'relationship'), n('나이', 'attribute'), n('과목', 'entity')];
+  const sectionTitles = () => Array.from(screen.getByTestId('inspector').querySelectorAll('.inspector-section-title'), (el) => el.textContent);
+
+  it('구역 순서: 카디널리티, 선 종류, 역할 이름, 붙는 위치, 선 모양', () => {
+    setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
+    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '역할 이름', '붙는 위치', '선 모양']);
+  });
+
+  it('양 끝의 붙는 위치를 따로 고르고, 자동은 키를 지운다', () => {
+    setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
+    expect(screen.getByTestId('inspector-source-side-auto').className).toContain('is-active');
+    expect(screen.getByTestId('inspector-target-side-auto').className).toContain('is-active');
+    for (const [side, name] of [['top', '위'], ['right', '오른쪽'], ['bottom', '아래'], ['left', '왼쪽']]) {
+      const button = screen.getByTestId(`inspector-target-side-${side}`);
+      expect(button.getAttribute('title')).toBe(name);
+      expect(button.getAttribute('aria-label')).toBe(name);
+    }
+
+    fireEvent.click(screen.getByTestId('inspector-source-side-right'));
+    fireEvent.click(screen.getByTestId('inspector-target-side-left'));
+    expect(yEdge('e1').toJSON()).toMatchObject({ sourceSide: 'right', targetSide: 'left' });
+    expect(screen.getByTestId('inspector-source-side-right').className).toContain('is-active');
+    expect(screen.getByTestId('inspector-target-side-left').className).toContain('is-active');
+    expect(screen.getByTestId('inspector-target-side-right').className ?? '').not.toContain('is-active');
+
+    fireEvent.click(screen.getByTestId('inspector-source-side-auto'));
+    expect(yEdge('e1').has('sourceSide')).toBe(false);
+    expect(yEdge('e1').get('targetSide')).toBe('left');
+    // 다른 값은 그대로다
+    expect(yEdge('e1').toJSON()).toMatchObject({ source: '학생', target: '수강', double: false, label: '', role: '' });
+  });
+
+  it('줄 머리에 양 끝 도형 이름을 적고, 마름모가 있으면 꼭짓점 안내를 보여 준다', () => {
+    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '학생', '나이')], ['e1']);
+    const inspector = screen.getByTestId('inspector');
+    expect(Array.from(inspector.querySelectorAll('.inspector-ellipsis'), (el) => el.textContent)).toEqual(['학생', '수강']);
+    expect(inspector.textContent).toContain('마름모는 고른 방향의 꼭짓점에 붙습니다.');
+
+    act(() => useUi.getState().setSelection(['e2']));
+    expect(screen.getByTestId('inspector').textContent).not.toContain('마름모는');
+    expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '붙는 위치', '선 모양']);
+  });
+
+  it('선 모양: 자동일 때 지금 그려지는 모양을 알려 준다', () => {
+    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '학생', '나이')], ['e1']);
+    expect(screen.getByTestId('inspector-shape-auto').className).toContain('is-active');
+    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+
+    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
+    expect(yEdge('e1').get('shape')).toBe('straight');
+    expect(screen.queryByTestId('inspector-shape-hint')).toBeNull();
+    fireEvent.click(screen.getByTestId('inspector-shape-elbow'));
+    expect(yEdge('e1').get('shape')).toBe('elbow');
+    fireEvent.click(screen.getByTestId('inspector-shape-auto'));
+    expect(yEdge('e1').has('shape')).toBe(false);
+
+    // 속성 선은 자동이면 직선, 면을 하나라도 정하면 꺾은선
+    act(() => useUi.getState().setSelection(['e2']));
+    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 직선으로 그립니다.');
+    fireEvent.click(screen.getByTestId('inspector-source-side-bottom'));
+    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+  });
+
+  it('붙는 위치 초기화: 양쪽 면과 모양을 한 번에 자동으로', () => {
+    setup(nodes(), [e('e1', '학생', '수강', { sourceSide: 'top', targetSide: 'bottom', shape: 'straight', label: 'N' })], ['e1']);
+    const reset = screen.getByTestId('inspector-anchor-reset') as HTMLButtonElement;
+    expect(reset.disabled).toBe(false);
+    fireEvent.click(reset);
+    expect(yEdge('e1').toJSON()).toEqual({ id: 'e1', source: '학생', target: '수강', double: false, label: 'N', role: '' });
+    expect(room.undo.undoStack).toHaveLength(1);
+    expect((screen.getByTestId('inspector-anchor-reset') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText('양 끝 바꾸기')).toBeNull();
+  });
+
+  it('다른 사람이 붙는 위치를 바꾸면 화면에 반영한다', () => {
+    setup(nodes(), [e('e1', '학생', '수강')], ['e1']);
+    remote(() => yEdge('e1').set('targetSide', 'top'));
+    expect(screen.getByTestId('inspector-target-side-top').className).toContain('is-active');
+  });
+
+  it('여러 선: 선 모양만 한꺼번에 바꾸고 붙는 위치는 보여 주지 않는다', () => {
+    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '수강', '과목', { shape: 'straight' }), e('e3', '학생', '나이')], ['e1', 'e2']);
+    expect(screen.queryByTestId('inspector-source-side-auto')).toBeNull();
+    expect(screen.queryByTestId('inspector-anchor-reset')).toBeNull();
+    // 값이 섞여 있으면 아무것도 강조하지 않는다
+    expect(screen.getByTestId('inspector').querySelectorAll('[data-testid^="inspector-shape-"].is-active')).toHaveLength(0);
+    fireEvent.click(screen.getByTestId('inspector-shape-elbow'));
+    expect([yEdge('e1').get('shape'), yEdge('e2').get('shape')]).toEqual(['elbow', 'elbow']);
+    expect(yEdge('e3').has('shape')).toBe(false);
+    expect(room.undo.undoStack).toHaveLength(1);
+    fireEvent.click(screen.getByTestId('inspector-shape-auto'));
+    expect([yEdge('e1').has('shape'), yEdge('e2').has('shape')]).toEqual([false, false]);
+    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+
+    // 성격이 다른 선이 섞여도 선 모양은 바꿀 수 있다
+    act(() => useUi.getState().setSelection(['e1', 'e2', 'e3', '학생']));
+    expect(screen.queryByTestId('inspector-line-double')).toBeNull();
+    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 선마다 다른 모양으로 그립니다.');
+    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
+    expect(['e1', 'e2', 'e3'].map((id) => yEdge(id).get('shape'))).toEqual(['straight', 'straight', 'straight']);
+  });
+});

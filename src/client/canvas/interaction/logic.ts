@@ -1,8 +1,8 @@
 /**
  * 캔버스 조작에 쓰는 순수 계산. DOM과 store를 건드리지 않는다. [담당: canvas 에이전트]
  */
-import { nodeRect, pointInNode, rectsIntersect } from '../../../shared/geometry';
-import { CARDINALITY_OPTIONS, MIN_NODE_SIZE, type ErdEdge, type ErdNode, type Point, type Rect } from '../../../shared/types';
+import { anchorPoint, nearestSide, nodeRect, pointInNode, rectsIntersect, sideDirection } from '../../../shared/geometry';
+import { CARDINALITY_OPTIONS, MIN_NODE_SIZE, SIDES, type ErdEdge, type ErdNode, type Point, type Rect, type Side } from '../../../shared/types';
 
 /** 드래그로 인정하는 최소 이동 거리(화면 px) */
 export const DRAG_THRESHOLD = 3;
@@ -10,8 +10,12 @@ export const DRAG_THRESHOLD = 3;
 export const HANDLE_SIZE = 8;
 /** 연결 점 반지름(화면 px) */
 export const CONNECT_DOT_RADIUS = 5;
-/** 도형 테두리에서 연결 점 중심까지 거리(화면 px) */
-export const CONNECT_DOT_OFFSET = 16;
+/** 도형의 고정점(변 가운데, 마름모 꼭짓점)에서 연결 점 중심까지 거리(화면 px) */
+export const CONNECT_DOT_OFFSET = 14;
+/** 고정점에 달라붙는 거리(화면 px) */
+export const ANCHOR_SNAP_DISTANCE = 14;
+/** 선 끝점 손잡이 지름(화면 px) */
+export const EDGE_END_SIZE = 9;
 /** 정렬 맞춤이 걸리는 거리(화면 px) */
 export const SNAP_DISTANCE = 6;
 
@@ -97,18 +101,17 @@ export function roundRect(r: Rect): Rect {
 
 // ───────────────────────── 연결 ─────────────────────────
 
-export type Side = 'top' | 'right' | 'bottom' | 'left';
+export function isSide(v: unknown): v is Side {
+  return typeof v === 'string' && (SIDES as readonly string[]).includes(v);
+}
 
-/** 도형 상하좌우 바깥에 띄우는 연결 점의 중심. offset은 월드 단위. */
-export function connectDotPoints(r: Rect, offset: number): Array<{ side: Side; x: number; y: number }> {
-  const cx = r.x + r.w / 2;
-  const cy = r.y + r.h / 2;
-  return [
-    { side: 'top', x: cx, y: r.y - offset },
-    { side: 'right', x: r.x + r.w + offset, y: cy },
-    { side: 'bottom', x: cx, y: r.y + r.h + offset },
-    { side: 'left', x: r.x - offset, y: cy },
-  ];
+/** 도형 상하좌우 고정점의 바로 바깥에 띄우는 연결 점의 중심. offset은 월드 단위. */
+export function connectDotPoints(node: ErdNode, offset: number): Array<{ side: Side; x: number; y: number }> {
+  return SIDES.map((side) => {
+    const a = anchorPoint(node, side);
+    const d = sideDirection(side);
+    return { side, x: a.x + d.x * offset, y: a.y + d.y * offset };
+  });
 }
 
 /** p가 사각형을 margin만큼 넓힌 범위 안에 있는지(연결 점으로 마우스를 옮기는 동안 점을 유지하는 데 쓴다) */
@@ -131,4 +134,70 @@ export function nextCardinality(label: string): string {
   const i = (CARDINALITY_OPTIONS as readonly string[]).indexOf(label);
   if (i < 0) return '';
   return CARDINALITY_OPTIONS[(i + 1) % CARDINALITY_OPTIONS.length];
+}
+
+// ───────────────────────── 선이 붙는 면 ─────────────────────────
+
+/**
+ * 이 두 도형을 잇는 선에 붙는 면을 저장할지. 엔티티와 관계, 엔티티와 특수화 원 사이의 선만 저장한다.
+ * 속성이 낀 선은 면 없이 비스듬한 직선으로 둔다.
+ */
+export function shouldStoreSides(source: ErdNode, target: ErdNode): boolean {
+  const pair = (a: ErdNode['kind'], b: ErdNode['kind']) =>
+    (source.kind === a && target.kind === b) || (source.kind === b && target.kind === a);
+  return pair('entity', 'relationship') || pair('entity', 'spec');
+}
+
+/** 새 선에 넣을 면 필드. 저장 조건에 맞지 않거나 면이 정해지지 않은 끝은 넣지 않는다(자동). */
+export function edgeSideProps(
+  source: ErdNode,
+  target: ErdNode,
+  sourceSide: Side | null | undefined,
+  targetSide: Side | null | undefined,
+): Pick<ErdEdge, 'sourceSide' | 'targetSide'> {
+  const out: Pick<ErdEdge, 'sourceSide' | 'targetSide'> = {};
+  if (!shouldStoreSides(source, target)) return out;
+  if (sourceSide) out.sourceSide = sourceSide;
+  if (targetSide) out.targetSide = targetSide;
+  return out;
+}
+
+/**
+ * 연결 중 마우스 아래의 대상 도형과, 달라붙을 고정점의 면.
+ * 도형 안이면 그 도형이고, 도형 밖이라도 고정점에서 snapDist 안이면(마름모 꼭짓점 바로 바깥 등) 그 도형으로 본다.
+ */
+export function pickConnectTarget(
+  nodes: ErdNode[],
+  p: Point,
+  excludeId: string | undefined,
+  snapDist: number,
+): { node: ErdNode; side: Side | null } | null {
+  const inside = topNodeAt(nodes, p, excludeId);
+  if (inside) return { node: inside, side: nearestSide(inside, p, snapDist) };
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    if (n.id === excludeId) continue;
+    const side = nearestSide(n, p, snapDist);
+    if (side) return { node: n, side };
+  }
+  return null;
+}
+
+export type EndDrop =
+  /** 고정점에 붙인다 */
+  | { kind: 'side'; side: Side }
+  /** 면 지정을 지워 자동으로 되돌린다 */
+  | { kind: 'auto' }
+  /** 아무것도 바꾸지 않는다 */
+  | { kind: 'none' };
+
+/**
+ * 선의 끝점 손잡이를 p에 놓았을 때 할 일. 고정점에서 snapDist 안이면 그 면에 붙이고,
+ * 고정점 근처가 아닌 몸통 위면 자동으로 되돌리고, 도형 밖이면 그대로 둔다.
+ */
+export function resolveEndDrop(node: ErdNode, p: Point, snapDist: number): EndDrop {
+  const side = nearestSide(node, p, snapDist);
+  if (side) return { kind: 'side', side };
+  if (pointInNode(node, p)) return { kind: 'auto' };
+  return { kind: 'none' };
 }

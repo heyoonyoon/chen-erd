@@ -1,17 +1,18 @@
 /**
  * 다이어그램 위에 겹쳐 그리는 조작용 표시: 선택 외곽선과 손잡이, 연결 점, 연결 중인 임시 선,
- * 상자 선택 사각형, 도형 놓기 미리보기, 안내문. [담당: canvas 에이전트]
+ * 선의 끝점 손잡이, 상자 선택 사각형, 도형 놓기 미리보기, 안내문. [담당: canvas 에이전트]
  */
 import { memo, useMemo, type ReactNode } from 'react';
-import { boundaryPoint, nodeCenter, nodeRect, unionBounds } from '../../../shared/geometry';
-import { NODE_PRESETS, STYLE, presetOfTool, type ErdNode, type NodePreset, type Point, type Rect } from '../../../shared/types';
-import { useNodeMap, useNodes, useSynced } from '../../collab/hooks';
+import { anchorPoint, boundaryPoint, computeEdgeGeometry, nodeCenter, nodeRect, siblingInfo, unionBounds } from '../../../shared/geometry';
+import { NODE_PRESETS, SIDES, STYLE, presetOfTool, type ErdNode, type NodePreset, type Point, type Rect, type Side } from '../../../shared/types';
+import { useEdges, useNodeMap, useNodes, useSynced } from '../../collab/hooks';
 import { useUi } from '../../state/ui';
 import { worldToScreen } from '../coords';
 import {
   CONNECT_DOT_OFFSET,
   CONNECT_DOT_RADIUS,
   CORNER_HANDLES,
+  EDGE_END_SIZE,
   HANDLE_CURSOR,
   HANDLE_SIZE,
   SIDE_HANDLES,
@@ -56,8 +57,31 @@ function ResizeHandles({ node, zoom }: { node: ErdNode; zoom: number }) {
   );
 }
 
+/** 도형의 고정점 4개(변 가운데, 마름모 꼭짓점). active인 면은 달라붙은 것으로 강조한다. */
+function AnchorDots({ node, zoom, active }: { node: ErdNode; zoom: number; active: Side | null }) {
+  return (
+    <g pointerEvents="none">
+      {SIDES.map((side) => {
+        const a = anchorPoint(node, side);
+        const on = side === active;
+        return (
+          <circle
+            key={side}
+            className={`canvas-anchor${on ? ' is-active' : ''}`}
+            data-anchor-side={side}
+            cx={a.x}
+            cy={a.y}
+            r={(on ? 5.5 : 3) / zoom}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
 function ConnectDots({ node, zoom }: { node: ErdNode; zoom: number }) {
-  const dots = connectDotPoints(nodeRect(node), CONNECT_DOT_OFFSET / zoom);
+  // 고정점(마름모는 꼭짓점) 바로 바깥에 놓는다
+  const dots = connectDotPoints(node, CONNECT_DOT_OFFSET / zoom);
   return (
     <g>
       {dots.map((d) => (
@@ -133,16 +157,20 @@ export const SelectionLayer = memo(function SelectionLayer() {
 export const ConnectDraftLayer = memo(function ConnectDraftLayer() {
   const draft = useUi((s) => s.connectDraft);
   const zoom = useUi((s) => s.viewport.zoom);
+  const sourceSide = useCanvasLocal((s) => s.connectSourceSide);
+  const targetSide = useCanvasLocal((s) => s.connectTargetSide);
+  const showAnchors = useCanvasLocal((s) => s.connectShowAnchors);
   const nodeMap = useNodeMap();
   if (!draft) return null;
   const source = nodeMap.get(draft.sourceId);
   if (!source) return null;
   const target = draft.targetId ? nodeMap.get(draft.targetId) : undefined;
 
-  // 연결할 수 있는 후보 위에서는 선이 후보의 테두리에 붙는다
+  // 연결할 수 있는 후보 위에서는 선이 후보의 테두리에, 고정점에 달라붙었으면 그 고정점에 붙는다
   const snapTo = target && draft.valid ? target : null;
-  const start = boundaryPoint(source, snapTo ? nodeCenter(snapTo) : draft.to);
-  const end = snapTo ? boundaryPoint(snapTo, nodeCenter(source)) : draft.to;
+  const end = snapTo ? (targetSide ? anchorPoint(snapTo, targetSide) : boundaryPoint(snapTo, nodeCenter(source))) : draft.to;
+  // 연결 점에서 시작했으면 그 고정점에서 출발한다
+  const start = sourceSide ? anchorPoint(source, sourceSide) : boundaryPoint(source, snapTo ? nodeCenter(snapTo) : draft.to);
 
   const lines: Array<[Point, Point]> = [];
   const len = Math.hypot(end.x - start.x, end.y - start.y);
@@ -180,6 +208,70 @@ export const ConnectDraftLayer = memo(function ConnectDraftLayer() {
           y2={b.y}
         />
       ))}
+      {showAnchors && snapTo && <AnchorDots node={snapTo} zoom={zoom} active={targetSide} />}
+    </g>
+  );
+});
+
+// ───────────────────────── 선의 끝점 손잡이 ─────────────────────────
+
+/**
+ * 선 하나만 선택됐을 때 양 끝에 그리는 손잡이. 끌면 그 끝이 붙은 도형의 고정점 4개가 나타나고
+ * 가까운 고정점에 달라붙는다(놓았을 때의 처리는 edgeEndGesture).
+ */
+export const EdgeEndsLayer = memo(function EdgeEndsLayer() {
+  const selection = useUi((s) => s.selection);
+  const zoom = useUi((s) => s.viewport.zoom);
+  const tool = useUi((s) => s.tool);
+  const mode = useCanvasLocal((s) => s.mode);
+  const spaceHeld = useCanvasLocal((s) => s.spaceHeld);
+  const drag = useCanvasLocal((s) => s.edgeEndDrag);
+  const edges = useEdges();
+  const nodeMap = useNodeMap();
+
+  const edgeId = selection.length === 1 ? selection[0] : null;
+  const edge = useMemo(() => (edgeId ? edges.find((e) => e.id === edgeId) : undefined), [edgeId, edges]);
+  const sibling = useMemo(() => (edge ? siblingInfo(edges).get(edge.id) : undefined), [edge, edges]);
+  const source = edge ? nodeMap.get(edge.source) : undefined;
+  const target = edge ? nodeMap.get(edge.target) : undefined;
+  const geometry = useMemo(
+    () => (edge && source && target ? computeEdgeGeometry(edge, source, target, sibling?.index ?? 0, sibling?.count ?? 1) : null),
+    [edge, source, target, sibling],
+  );
+
+  if (!edge || !geometry || tool !== 'select') return null;
+  const dragging = mode === 'edge-end' && drag && drag.edgeId === edge.id ? drag : null;
+  if (!dragging && !(mode === 'idle' && !spaceHeld)) return null;
+
+  const r = EDGE_END_SIZE / 2 / zoom;
+  const ends = [
+    { end: 'source' as const, p: geometry.start },
+    { end: 'target' as const, p: geometry.end },
+  ];
+  const dragNode = dragging ? nodeMap.get(dragging.nodeId) : undefined;
+  const ghost = dragging && dragNode ? (dragging.side ? anchorPoint(dragNode, dragging.side) : dragging.to) : null;
+  const other = dragging ? (dragging.end === 'source' ? geometry.end : geometry.start) : null;
+
+  return (
+    <g className="canvas-edge-ends">
+      {ends.map(({ end, p }) => (
+        <g
+          key={end}
+          className={`canvas-edge-end${dragging?.end === end ? ' is-dragging' : ''}`}
+          data-edge-end={end}
+          data-edge-end-of={edge.id}
+        >
+          <circle className="canvas-edge-end-hit" cx={p.x} cy={p.y} r={r + 4 / zoom} />
+          <circle className="canvas-edge-end-mark" cx={p.x} cy={p.y} r={r} />
+        </g>
+      ))}
+      {dragNode && ghost && other && (
+        <g pointerEvents="none">
+          <line className="canvas-edge-end-preview" x1={other.x} y1={other.y} x2={ghost.x} y2={ghost.y} />
+          <AnchorDots node={dragNode} zoom={zoom} active={dragging?.side ?? null} />
+          {!dragging?.side && <circle className="canvas-edge-end-ghost" cx={ghost.x} cy={ghost.y} r={r} />}
+        </g>
+      )}
     </g>
   );
 });

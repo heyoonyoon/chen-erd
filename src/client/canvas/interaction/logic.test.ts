@@ -2,14 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { MIN_NODE_SIZE, type ErdEdge, type ErdNode } from '../../../shared/types';
 import {
   connectDotPoints,
+  edgeSideProps,
   exceedsThreshold,
   handlePoint,
   inExpandedRect,
   marqueeSelection,
+  isSide,
   nextCardinality,
+  pickConnectTarget,
   rectFromPoints,
   resizeRect,
+  resolveEndDrop,
   roundRect,
+  shouldStoreSides,
   topNodeAt,
 } from './logic';
 
@@ -117,14 +122,117 @@ describe('handlePoint', () => {
 });
 
 describe('connectDotPoints', () => {
-  it('상하좌우 바깥에 하나씩 놓는다', () => {
-    const pts = connectDotPoints({ x: 0, y: 0, w: 100, h: 60 }, 10);
+  it('상하좌우 고정점 바깥에 하나씩 놓는다', () => {
+    const pts = connectDotPoints(node('n', 0, 0, 100, 60), 10);
     expect(pts).toEqual([
       { side: 'top', x: 50, y: -10 },
       { side: 'right', x: 110, y: 30 },
       { side: 'bottom', x: 50, y: 70 },
       { side: 'left', x: -10, y: 30 },
     ]);
+  });
+
+  it('마름모는 꼭짓점 바로 바깥에 놓인다', () => {
+    const pts = connectDotPoints(node('r', 100, 100, 140, 80, 'relationship'), 14);
+    expect(pts.find((p) => p.side === 'top')).toEqual({ side: 'top', x: 170, y: 86 });
+    expect(pts.find((p) => p.side === 'right')).toEqual({ side: 'right', x: 254, y: 140 });
+    expect(pts.find((p) => p.side === 'left')).toEqual({ side: 'left', x: 86, y: 140 });
+  });
+});
+
+describe('isSide', () => {
+  it('네 면 이름만 통과시킨다', () => {
+    expect(isSide('top')).toBe(true);
+    expect(isSide('left')).toBe(true);
+    expect(isSide('middle')).toBe(false);
+    expect(isSide(null)).toBe(false);
+  });
+});
+
+describe('면 저장 조건', () => {
+  const e = node('e', 0, 0, 140, 60, 'entity');
+  const r = node('r', 300, 0, 140, 80, 'relationship');
+  const a = node('a', 0, 200, 120, 50, 'attribute');
+  const sp = node('s', 300, 200, 34, 34, 'spec');
+  const memo = node('m', 600, 0, 160, 50, 'note');
+
+  it('엔티티와 관계, 엔티티와 특수화 원 사이의 선만 면을 저장한다(방향 무관)', () => {
+    expect(shouldStoreSides(e, r)).toBe(true);
+    expect(shouldStoreSides(r, e)).toBe(true);
+    expect(shouldStoreSides(e, sp)).toBe(true);
+    expect(shouldStoreSides(sp, e)).toBe(true);
+  });
+
+  it('속성이 낀 선과 그 밖의 조합은 저장하지 않는다', () => {
+    expect(shouldStoreSides(e, a)).toBe(false);
+    expect(shouldStoreSides(r, a)).toBe(false);
+    expect(shouldStoreSides(a, a)).toBe(false);
+    expect(shouldStoreSides(e, e)).toBe(false);
+    expect(shouldStoreSides(r, sp)).toBe(false);
+    expect(shouldStoreSides(e, memo)).toBe(false);
+  });
+
+  it('edgeSideProps는 정해진 면만 넣고 없는 쪽은 키 자체를 넣지 않는다', () => {
+    expect(edgeSideProps(e, r, 'right', 'left')).toEqual({ sourceSide: 'right', targetSide: 'left' });
+    expect(edgeSideProps(e, r, 'right', null)).toEqual({ sourceSide: 'right' });
+    expect('targetSide' in edgeSideProps(e, r, 'right', null)).toBe(false);
+    expect(edgeSideProps(e, r, null, 'top')).toEqual({ targetSide: 'top' });
+    expect(edgeSideProps(e, r, undefined, undefined)).toEqual({});
+  });
+
+  it('저장 조건에 맞지 않으면 면이 주어져도 넣지 않는다', () => {
+    expect(edgeSideProps(e, a, 'bottom', 'top')).toEqual({});
+    expect(edgeSideProps(a, r, 'right', 'left')).toEqual({});
+  });
+});
+
+describe('pickConnectTarget', () => {
+  const e = node('e', 0, 0, 140, 60, 'entity');
+  const r = node('r', 300, 0, 140, 80, 'relationship'); // 꼭짓점: 위 (370,0) 오른쪽 (440,40) 아래 (370,80) 왼쪽 (300,40)
+  const nodes = [e, r];
+
+  it('고정점에서 달라붙는 거리 안이면 그 면을 함께 돌려준다', () => {
+    expect(pickConnectTarget(nodes, { x: 306, y: 42 }, 'e', 14)).toEqual({ node: r, side: 'left' });
+    expect(pickConnectTarget(nodes, { x: 372, y: 10 }, 'e', 14)).toEqual({ node: r, side: 'top' });
+  });
+
+  it('몸통 위지만 고정점에서 멀면 면이 없다(자동)', () => {
+    expect(pickConnectTarget(nodes, { x: 370, y: 40 }, 'e', 14)).toEqual({ node: r, side: null });
+  });
+
+  it('마름모 꼭짓점 바로 바깥(도형 밖)이어도 달라붙는 거리 안이면 대상으로 잡는다', () => {
+    expect(pickConnectTarget(nodes, { x: 292, y: 40 }, 'e', 14)).toEqual({ node: r, side: 'left' });
+    expect(pickConnectTarget(nodes, { x: 280, y: 40 }, 'e', 14)).toBeNull();
+  });
+
+  it('출발 도형은 건너뛰고, 아무것도 없으면 null', () => {
+    expect(pickConnectTarget(nodes, { x: 70, y: 30 }, 'e', 14)).toBeNull();
+    expect(pickConnectTarget(nodes, { x: 70, y: 30 }, 'r', 14)?.node).toBe(e);
+    expect(pickConnectTarget(nodes, { x: 1000, y: 1000 }, undefined, 14)).toBeNull();
+  });
+
+  it('달라붙는 거리는 인자로 받은 월드 단위 그대로 쓴다(배율 반영은 호출하는 쪽)', () => {
+    expect(pickConnectTarget(nodes, { x: 320, y: 40 }, 'e', 14)?.side).toBeNull();
+    expect(pickConnectTarget(nodes, { x: 320, y: 40 }, 'e', 28)?.side).toBe('left');
+  });
+});
+
+describe('resolveEndDrop', () => {
+  const r = node('r', 300, 0, 140, 80, 'relationship');
+
+  it('고정점 근처에 놓으면 그 면에 붙인다', () => {
+    expect(resolveEndDrop(r, { x: 436, y: 44 }, 14)).toEqual({ kind: 'side', side: 'right' });
+    expect(resolveEndDrop(r, { x: 370, y: 90 }, 14)).toEqual({ kind: 'side', side: 'bottom' });
+  });
+
+  it('고정점에서 먼 몸통 위에 놓으면 자동으로 되돌린다', () => {
+    expect(resolveEndDrop(r, { x: 370, y: 40 }, 14)).toEqual({ kind: 'auto' });
+  });
+
+  it('도형 밖에 놓으면 아무것도 바꾸지 않는다', () => {
+    expect(resolveEndDrop(r, { x: 600, y: 300 }, 14)).toEqual({ kind: 'none' });
+    // 사각형 범위 안이라도 마름모 밖(모서리 쪽)이면 도형 밖이다
+    expect(resolveEndDrop(r, { x: 305, y: 5 }, 14)).toEqual({ kind: 'none' });
   });
 });
 

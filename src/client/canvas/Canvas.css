@@ -32,6 +32,19 @@
 .canvas-draft-target.is-invalid { stroke: var(--danger); fill: rgba(220, 53, 69, 0.06); }
 .canvas-connect-reason { position: absolute; z-index: 5; max-width: 260px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--danger); color: #fff; font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
 
+/* 고정점(변 가운데, 마름모 꼭짓점). 연결 중인 대상과 끝점을 옮기는 도형에 보인다 */
+.canvas-anchor { fill: #fff; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.canvas-anchor.is-active { fill: var(--accent); stroke: #fff; stroke-width: 2; }
+
+/* 선의 끝점 손잡이 */
+.canvas-edge-end { cursor: crosshair; }
+.canvas-edge-end-hit { fill: transparent; stroke: none; }
+.canvas-edge-end-mark,
+.canvas-edge-end-ghost { fill: #fff; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.canvas-edge-end:hover .canvas-edge-end-mark { fill: var(--accent-soft); }
+.canvas-edge-end.is-dragging .canvas-edge-end-mark { opacity: 0.35; }
+.canvas-edge-end-preview { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; fill: none; }
+
 /* 상자 선택 */
 .canvas-marquee { fill: rgba(13, 110, 253, 0.08); stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
 

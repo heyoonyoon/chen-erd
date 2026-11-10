@@ -40,6 +40,13 @@ export interface ErdNode {
 
 // ───────────────────────── 연결선(엣지) ─────────────────────────
 
+/** 도형의 네 면. 마름모와 타원, 원에서는 그 방향의 꼭짓점(끝점)을 뜻한다. */
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+export const SIDES: readonly Side[] = ['top', 'right', 'bottom', 'left'];
+
+/** 선 모양. straight = 두 끝을 곧게 잇는 직선, elbow = 가로세로로만 꺾이는 선 */
+export type EdgeShapeKind = 'straight' | 'elbow';
+
 export interface ErdEdge {
   id: string;
   /** 연결된 두 노드의 id. 방향에 의미는 없다(그리기 시작한 쪽이 source). */
@@ -51,6 +58,15 @@ export interface ErdEdge {
   label: string;
   /** 역할 이름(재귀 관계 등에서 사용). 없으면 ''. */
   role: string;
+  /** 선이 source 도형의 어느 면(꼭짓점)에 붙는지. 없으면 자동으로 고른다. */
+  sourceSide?: Side;
+  /** 선이 target 도형의 어느 면(꼭짓점)에 붙는지. 없으면 자동으로 고른다. */
+  targetSide?: Side;
+  /**
+   * 선 모양. 없으면 자동: 엔티티와 관계 사이의 선은 elbow(마름모 꼭짓점에 수직/수평으로 붙는다),
+   * 그 외(속성 선, 특수화 선)는 straight. 단, 면이 하나라도 지정된 선은 자동일 때 elbow로 본다.
+   */
+  shape?: EdgeShapeKind;
 }
 
 export const CARDINALITY_OPTIONS = ['', '1', 'M', 'N'] as const;

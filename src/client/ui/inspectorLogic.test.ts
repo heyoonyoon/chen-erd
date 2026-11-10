@@ -11,6 +11,7 @@ import {
   parseSize,
   presetChangePatch,
   resizePatch,
+  resolveEdgeShape,
 } from './inspectorLogic';
 
 function box(id: string, x: number, y: number, w: number, h: number) {
@@ -182,5 +183,32 @@ describe('작은 도우미', () => {
   it('keyTypeOf', () => {
     expect(keyTypeOf({})).toBe('none');
     expect(keyTypeOf({ keyType: 'partial' })).toBe('partial');
+  });
+});
+
+describe('resolveEdgeShape', () => {
+  const e = node({ kind: 'entity' });
+  const r = node({ kind: 'relationship' });
+  const a = node({ kind: 'attribute' });
+  const s = node({ kind: 'spec' });
+
+  it('자동: 엔티티와 관계 사이는 꺾은선, 그 밖은 직선', () => {
+    expect(resolveEdgeShape({}, e, r)).toBe('elbow');
+    expect(resolveEdgeShape({}, r, e)).toBe('elbow');
+    expect(resolveEdgeShape({}, e, a)).toBe('straight');
+    expect(resolveEdgeShape({}, r, a)).toBe('straight');
+    expect(resolveEdgeShape({}, e, s)).toBe('straight');
+    expect(resolveEdgeShape({}, e, undefined)).toBe('straight');
+  });
+
+  it('자동이라도 붙는 면이 하나라도 지정되면 꺾은선', () => {
+    expect(resolveEdgeShape({ sourceSide: 'top' }, e, a)).toBe('elbow');
+    expect(resolveEdgeShape({ targetSide: 'left' }, e, s)).toBe('elbow');
+  });
+
+  it('직접 고른 모양이 가장 먼저다', () => {
+    expect(resolveEdgeShape({ shape: 'straight' }, e, r)).toBe('straight');
+    expect(resolveEdgeShape({ shape: 'straight', sourceSide: 'top' }, e, r)).toBe('straight');
+    expect(resolveEdgeShape({ shape: 'elbow' }, e, a)).toBe('elbow');
   });
 });

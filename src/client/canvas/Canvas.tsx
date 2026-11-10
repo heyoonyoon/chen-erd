@@ -13,7 +13,7 @@ import { RemoteCursors, RemoteSelections, useBroadcastCursor } from '../presence
 import { useUi } from '../state/ui';
 import { viewportTransform } from './coords';
 import { EdgeShape } from './EdgeShape';
-import { ConnectDraftLayer, ConnectReason, EmptyHint, MarqueeLayer, PlacePreview, SelectionLayer } from './interaction/Overlays';
+import { ConnectDraftLayer, ConnectReason, EdgeEndsLayer, EmptyHint, MarqueeLayer, PlacePreview, SelectionLayer } from './interaction/Overlays';
 import { useCanvasCursor, useCanvasSize, useInitialFit, useSpaceKey } from './interaction/useCanvasSetup';
 import { usePointerInteractions } from './interaction/usePointerInteractions';
 import { NodeShape } from './NodeShape';
@@ -127,6 +127,7 @@ export function Canvas() {
           <RemoteSelections />
           <ConnectDraftLayer />
           <SelectionLayer />
+          <EdgeEndsLayer />
           <GuidesLayer />
           <MarqueeLayer />
           <PlacePreview />

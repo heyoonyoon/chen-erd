@@ -4,10 +4,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import type { ErdEdge, ErdNode } from '../../../shared/types';
-import { LOCAL_ORIGIN, addNodes, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode } from '../../collab/docOps';
+import { LOCAL_ORIGIN, addEdge, addNodes, createEdge, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode } from '../../collab/docOps';
 import { ElementStore, type Room } from '../../collab/room';
 import { ui, useUi } from '../../state/ui';
 import { startConnect } from './connectGesture';
+import { startEdgeEnd } from './edgeEndGesture';
 import type { GestureCtx, PointerSnap } from './gesture';
 import { startMove } from './moveGesture';
 import { startResize } from './resizeGesture';
@@ -288,6 +289,193 @@ describe('연결', () => {
     g.end(at(50, 25));
     expect(ui().selection).toEqual(['e']);
     expect(room.edges.getSnapshot()).toHaveLength(0);
+  });
+});
+
+describe('연결할 때 붙는 면 기록', () => {
+  // 엔티티 e: (0,0) 100x50, 관계 r: (300,0) 100x60 → 꼭짓점 왼쪽 (300,30), 위 (350,0)
+  beforeEach(() => {
+    addNodes(room.doc, [
+      entity('e', 0, 0),
+      relationship('r', 300, 0),
+      { id: 'a', kind: 'attribute', x: 0, y: 300, w: 120, h: 50, text: 'a' },
+      { id: 's', kind: 'spec', x: 300, y: 300, w: 34, h: 34, text: '', specType: 'd' },
+    ]);
+    room.undo.stopCapturing();
+  });
+
+  it('연결 점에서 시작해 대상 고정점 근처에 놓으면 양쪽 면을 저장한다', () => {
+    const g = startConnect(ctx, at(114, 25), 'e', { double: false, sourceSide: 'right' });
+    g.move(at(200, 30));
+    g.move(at(305, 33));
+    expect(canvasLocal()).toMatchObject({ connectSourceSide: 'right', connectShowAnchors: true, connectTargetSide: 'left' });
+    g.end(at(305, 33));
+    expect(room.edges.getSnapshot()).toMatchObject([{ source: 'e', target: 'r', sourceSide: 'right', targetSide: 'left' }]);
+    expect(canvasLocal()).toMatchObject({ connectSourceSide: null, connectShowAnchors: false, connectTargetSide: null });
+  });
+
+  it('마름모 꼭짓점 바로 바깥에 놓아도 그 꼭짓점에 붙는다', () => {
+    const g = startConnect(ctx, at(114, 25), 'e', { double: false, sourceSide: 'right' });
+    g.move(at(292, 30));
+    expect(ui().connectDraft).toMatchObject({ targetId: 'r', valid: true });
+    g.end(at(292, 30));
+    expect(room.edges.getSnapshot()).toMatchObject([{ sourceSide: 'right', targetSide: 'left' }]);
+    expect(room.nodes.getSnapshot()).toHaveLength(4); // 빈 곳으로 보고 속성을 만들지 않는다
+  });
+
+  it('대상의 몸통(고정점에서 먼 곳)에 놓으면 targetSide는 없다(자동)', () => {
+    const g = startConnect(ctx, at(114, 25), 'e', { double: false, sourceSide: 'right' });
+    g.move(at(350, 30));
+    expect(canvasLocal()).toMatchObject({ connectShowAnchors: true, connectTargetSide: null });
+    g.end(at(350, 30));
+    const edge = room.edges.getSnapshot()[0];
+    expect(edge.sourceSide).toBe('right');
+    expect(edge.targetSide).toBeUndefined();
+  });
+
+  it('연결 도구로 몸통에서 끌면 sourceSide는 없다', () => {
+    const g = startConnect(ctx, at(50, 25), 'e', { double: false });
+    g.move(at(350, 3));
+    g.end(at(350, 3));
+    const edge = room.edges.getSnapshot()[0];
+    expect(edge.sourceSide).toBeUndefined();
+    expect(edge.targetSide).toBe('top');
+  });
+
+  it('배율이 바뀌어도 화면 기준 14px로 달라붙는다', () => {
+    ui().setViewport({ x: 0, y: 0, zoom: 2 });
+    // 화면 (640,60) → 월드 (320,30): 왼쪽 꼭짓점에서 월드 20, 화면 40px 떨어져 있다
+    const g = startConnect(ctx, at(228, 50), 'e', { double: false, sourceSide: 'right' });
+    g.move(at(640, 60));
+    expect(canvasLocal().connectTargetSide).toBeNull();
+    // 화면 (620,60) → 월드 (310,30): 화면 20px → 아직 멀다. (610,60) → 화면 10px → 달라붙는다
+    g.move(at(620, 60));
+    expect(canvasLocal().connectTargetSide).toBeNull();
+    g.move(at(610, 60));
+    expect(canvasLocal().connectTargetSide).toBe('left');
+    g.cancel();
+  });
+
+  it('엔티티와 특수화 원 사이도 면을 저장한다', () => {
+    const g = startConnect(ctx, at(50, 64), 'e', { double: false, sourceSide: 'bottom' });
+    g.move(at(317, 302));
+    g.end(at(317, 302));
+    expect(room.edges.getSnapshot()).toMatchObject([{ source: 'e', target: 's', sourceSide: 'bottom', targetSide: 'top' }]);
+  });
+
+  it('속성이 낀 선은 연결 점에서 시작해 고정점에 놓아도 면을 저장하지 않는다', () => {
+    const g = startConnect(ctx, at(50, 64), 'e', { double: false, sourceSide: 'bottom' });
+    g.move(at(60, 302));
+    expect(ui().connectDraft).toMatchObject({ targetId: 'a', valid: true });
+    expect(canvasLocal()).toMatchObject({ connectShowAnchors: false, connectTargetSide: null });
+    g.end(at(60, 302));
+    const edge = room.edges.getSnapshot()[0];
+    expect(edge).toMatchObject({ source: 'e', target: 'a' });
+    expect(edge.sourceSide).toBeUndefined();
+    expect(edge.targetSide).toBeUndefined();
+  });
+
+  it('빈 곳에 놓아 만든 속성 선도 면을 저장하지 않는다', () => {
+    const g = startConnect(ctx, at(114, 25), 'e', { double: false, sourceSide: 'right' });
+    g.move(at(150, 150));
+    g.end(at(150, 150));
+    const edge = room.edges.getSnapshot()[0];
+    expect(room.nodes.get(edge.target)?.kind).toBe('attribute');
+    expect(edge.sourceSide).toBeUndefined();
+    expect(edge.targetSide).toBeUndefined();
+  });
+});
+
+describe('선의 끝점 옮기기', () => {
+  beforeEach(() => {
+    addNodes(room.doc, [entity('e', 0, 0), relationship('r', 300, 0)]);
+    addEdge(room.doc, { ...createEdge('e', 'r'), id: 'x' });
+    room.undo.stopCapturing();
+  });
+
+  it('끄는 동안 가까운 고정점에 달라붙고, 놓으면 그 면을 저장한다(실행 취소 한 단계)', () => {
+    const before = room.undo.undoStack.length;
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(330, 20));
+    expect(canvasLocal().mode).toBe('edge-end');
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ edgeId: 'x', end: 'target', nodeId: 'r', side: null });
+    g.move(at(352, 4));
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ side: 'top' });
+    expect(room.edges.get('x')!.targetSide).toBeUndefined(); // 놓기 전에는 문서를 건드리지 않는다
+    g.end(at(352, 4));
+    expect(room.edges.get('x')!.targetSide).toBe('top');
+    expect(room.edges.get('x')!.sourceSide).toBeUndefined();
+    expect(canvasLocal().edgeEndDrag).toBeNull();
+    expect(room.undo.undoStack.length).toBe(before + 1);
+
+    room.undo.undo();
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+  });
+
+  it('source 쪽 끝은 source 도형의 고정점에 붙는다', () => {
+    const g = startEdgeEnd(ctx, at(100, 25), 'x', 'source')!;
+    g.move(at(52, 48));
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ nodeId: 'e', side: 'bottom' });
+    g.end(at(52, 48));
+    expect(room.edges.get('x')).toMatchObject({ sourceSide: 'bottom' });
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+  });
+
+  it('고정점에서 먼 몸통 위에 놓으면 면 지정을 지운다(자동)', () => {
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(352, 4));
+    g.end(at(352, 4));
+    expect(room.edges.get('x')!.targetSide).toBe('top');
+
+    const g2 = startEdgeEnd(ctx, at(350, 0), 'x', 'target')!;
+    g2.move(at(350, 30));
+    g2.end(at(350, 30));
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+    expect('targetSide' in room.edges.get('x')!).toBe(false);
+  });
+
+  it('도형 밖에 놓거나 취소하거나 끌지 않으면 아무것도 바뀌지 않는다', () => {
+    const before = room.undo.undoStack.length;
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(600, 400));
+    g.end(at(600, 400));
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+
+    const g2 = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g2.move(at(352, 4));
+    g2.cancel();
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+    expect(canvasLocal().edgeEndDrag).toBeNull();
+
+    const g3 = startEdgeEnd(ctx, at(350, 2), 'x', 'target')!;
+    g3.end(at(350, 2));
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+    expect(room.undo.undoStack.length).toBe(before);
+  });
+
+  it('다른 도형의 고정점에는 붙지 않는다', () => {
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(50, 2)); // 엔티티의 위쪽 고정점 근처
+    expect(canvasLocal().edgeEndDrag).toMatchObject({ nodeId: 'r', side: null });
+    g.end(at(50, 2));
+    expect(room.edges.get('x')).toMatchObject({ source: 'e', target: 'r' });
+    expect(room.edges.get('x')!.targetSide).toBeUndefined();
+  });
+
+  it('도형을 옮겨도 저장된 면은 그대로다', () => {
+    const g = startEdgeEnd(ctx, at(300, 30), 'x', 'target')!;
+    g.move(at(352, 4));
+    g.end(at(352, 4));
+    ui().setSelection(['r']);
+    const m = startMove(ctx, at(350, 30), 'r')!;
+    m.move(at(350, 400));
+    m.end(at(350, 400));
+    expect(room.nodes.get('r')!.y).toBe(370);
+    expect(room.edges.get('x')!.targetSide).toBe('top');
+  });
+
+  it('없는 선이면 조작을 만들지 않는다', () => {
+    expect(startEdgeEnd(ctx, at(0, 0), 'nope', 'source')).toBeNull();
   });
 });
 

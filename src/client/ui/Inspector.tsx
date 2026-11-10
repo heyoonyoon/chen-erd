@@ -14,11 +14,14 @@ import {
   MIN_NODE_SIZE,
   NODE_PRESETS,
   PRESET_ORDER,
+  SIDES,
   presetOf,
+  type EdgeShapeKind,
   type ErdEdge,
   type ErdNode,
   type KeyType,
   type PresetId,
+  type Side,
   type SpecType,
 } from '../../shared/types';
 import {
@@ -32,6 +35,7 @@ import {
   parseSize,
   presetChangePatch,
   resizePatch,
+  resolveEdgeShape,
   type AlignMode,
   type DistributeAxis,
 } from './inspectorLogic';
@@ -143,6 +147,8 @@ interface SegOption<T extends string> {
   value: T;
   label: string;
   title?: string;
+  /** 있으면 글자 대신 아이콘을 그리고, label은 title과 aria-label로 쓴다 */
+  icon?: ReactNode;
   disabled?: boolean;
 }
 
@@ -168,12 +174,13 @@ function Segmented<T extends string>({
           type="button"
           className={o.value === value ? 'is-active' : undefined}
           aria-pressed={o.value === value}
-          title={o.title}
+          title={o.title ?? (o.icon ? o.label : undefined)}
+          aria-label={o.icon ? o.label : undefined}
           disabled={o.disabled}
           data-testid={testId ? `${testId}-${o.value || 'none'}` : undefined}
           onClick={() => onChange(o.value)}
         >
-          {o.label}
+          {o.icon ?? o.label}
         </button>
       ))}
     </div>
@@ -474,6 +481,106 @@ function EdgeFields({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string,
   );
 }
 
+// ───────────────────────── 선이 붙는 위치와 모양 ─────────────────────────
+
+const SIDE_LABELS: Record<Side, string> = { top: '위', right: '오른쪽', bottom: '아래', left: '왼쪽' };
+/** 아이콘에서 붙는 점을 찍는 자리(16x16 안의 사각형 변 가운데) */
+const SIDE_DOTS: Record<Side, [number, number]> = { top: [8, 4], right: [12, 8], bottom: [8, 12], left: [4, 8] };
+
+/** 도형을 뜻하는 사각형과 선이 붙는 변의 점 */
+function SideIcon({ side }: { side: Side }) {
+  const [cx, cy] = SIDE_DOTS[side];
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x={4} y={4} width={8} height={8} stroke="currentColor" strokeWidth={1.2} opacity={0.5} />
+      <circle cx={cx} cy={cy} r={2.5} fill="currentColor" />
+    </svg>
+  );
+}
+
+type SideChoice = Side | 'auto';
+const SIDE_OPTIONS: SegOption<SideChoice>[] = [
+  { value: 'auto', label: '자동', title: '가까운 쪽에 알아서 붙입니다' },
+  ...SIDES.map((side) => ({ value: side, label: SIDE_LABELS[side], icon: <SideIcon side={side} /> })),
+];
+
+type ShapeChoice = EdgeShapeKind | 'auto';
+const SHAPE_OPTIONS: SegOption<ShapeChoice>[] = [
+  { value: 'auto', label: '자동' },
+  { value: 'straight', label: '직선' },
+  { value: 'elbow', label: '꺾은선' },
+];
+const SHAPE_LABELS: Record<EdgeShapeKind, string> = { straight: '직선', elbow: '꺾은선' };
+
+/** 선 하나의 양 끝이 도형의 어느 쪽에 붙는지 */
+function EdgeAnchorSection({ edge, nodeMap }: { edge: ErdEdge; nodeMap: Map<string, ErdNode> }) {
+  const room = useRoom();
+  const source = nodeMap.get(edge.source);
+  const target = nodeMap.get(edge.target);
+  const side = (choice: SideChoice): Side | undefined => (choice === 'auto' ? undefined : choice);
+  const isDefault = !edge.sourceSide && !edge.targetSide && !edge.shape;
+  return (
+    <Section title="붙는 위치">
+      <div className="inspector-row">
+        <span className="inspector-row-label inspector-ellipsis" title={nodeLabel(source)}>
+          {nodeLabel(source)}
+        </span>
+        <Segmented
+          label={`${nodeLabel(source)}에 붙는 위치`}
+          testId="inspector-source-side"
+          options={SIDE_OPTIONS}
+          value={edge.sourceSide ?? 'auto'}
+          onChange={(v) => updateEdge(room.doc, edge.id, { sourceSide: side(v) })}
+        />
+      </div>
+      <div className="inspector-row">
+        <span className="inspector-row-label inspector-ellipsis" title={nodeLabel(target)}>
+          {nodeLabel(target)}
+        </span>
+        <Segmented
+          label={`${nodeLabel(target)}에 붙는 위치`}
+          testId="inspector-target-side"
+          options={SIDE_OPTIONS}
+          value={edge.targetSide ?? 'auto'}
+          onChange={(v) => updateEdge(room.doc, edge.id, { targetSide: side(v) })}
+        />
+      </div>
+      {(source?.kind === 'relationship' || target?.kind === 'relationship') && <Hint>마름모는 고른 방향의 꼭짓점에 붙습니다.</Hint>}
+      <button
+        type="button"
+        className="btn btn-ghost inspector-reset"
+        title="양쪽 붙는 위치와 선 모양을 자동으로 되돌립니다"
+        data-testid="inspector-anchor-reset"
+        disabled={isDefault}
+        onClick={() => updateEdge(room.doc, edge.id, { sourceSide: undefined, targetSide: undefined, shape: undefined })}
+      >
+        붙는 위치 초기화
+      </button>
+    </Section>
+  );
+}
+
+/** 선 모양(하나 또는 여러 개 한꺼번에) */
+function EdgeShapeSection({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string, ErdNode> }) {
+  const room = useRoom();
+  const choice = commonValue(edges.map((e): ShapeChoice => e.shape ?? 'auto'));
+  const drawn = commonValue(edges.map((e) => resolveEdgeShape(e, nodeMap.get(e.source), nodeMap.get(e.target))));
+  const change = (v: ShapeChoice) => {
+    const shape = v === 'auto' ? undefined : v;
+    updateEdges(room.doc, edges.map((e) => ({ id: e.id, patch: { shape } })));
+  };
+  return (
+    <Section title="선 모양">
+      <Segmented label="선 모양" testId="inspector-shape" options={SHAPE_OPTIONS} value={choice} onChange={change} />
+      {choice === 'auto' && (
+        <p className="inspector-hint" data-testid="inspector-shape-hint">
+          {drawn ? `지금은 ${SHAPE_LABELS[drawn]}으로 그립니다.` : '지금은 선마다 다른 모양으로 그립니다.'}
+        </p>
+      )}
+    </Section>
+  );
+}
+
 // ───────────────────────── 여러 개 선택 ─────────────────────────
 
 type AlignIconName = AlignMode | 'dist-h' | 'dist-v';
@@ -646,6 +753,8 @@ export function Inspector() {
           {name}
         </p>
         <EdgeFields edges={selEdges} nodeMap={nodeMap} />
+        <EdgeAnchorSection edge={edge} nodeMap={nodeMap} />
+        <EdgeShapeSection edges={selEdges} nodeMap={nodeMap} />
       </div>
     );
   } else {
@@ -661,6 +770,7 @@ export function Inspector() {
         {selNodes.length >= 2 && <AlignSection nodeIds={selNodes.map((n) => n.id)} />}
         {allAttributes && <AttributeBatch nodes={selNodes} />}
         {sameNature && <EdgeFields edges={selEdges} nodeMap={nodeMap} />}
+        {selEdges.length > 0 && <EdgeShapeSection edges={selEdges} nodeMap={nodeMap} />}
       </div>
     );
   }

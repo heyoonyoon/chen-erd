@@ -5,15 +5,16 @@
 import { useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { nodeRect } from '../../../shared/geometry';
 import { edgeCanBeDouble, edgeHasCardinality } from '../../../shared/rules';
-import { presetOfTool } from '../../../shared/types';
+import { presetOfTool, type Side } from '../../../shared/types';
 import { updateEdge } from '../../collab/docOps';
 import { useRoom } from '../../collab/hooks';
 import type { Room } from '../../collab/room';
 import { ui } from '../../state/ui';
 import { clientToWorld } from '../coords';
 import { startConnect } from './connectGesture';
+import { startEdgeEnd, type EdgeEnd } from './edgeEndGesture';
 import { isAdditive, snapOf, type Gesture, type GestureCtx, type PointerSnap } from './gesture';
-import { CONNECT_DOT_OFFSET, CONNECT_DOT_RADIUS, inExpandedRect, isHandle, nextCardinality, type Handle } from './logic';
+import { CONNECT_DOT_OFFSET, CONNECT_DOT_RADIUS, inExpandedRect, isHandle, isSide, nextCardinality, type Handle } from './logic';
 import { startMove } from './moveGesture';
 import { startResize } from './resizeGesture';
 import { startMarquee, startPan, startPlace } from './simpleGestures';
@@ -27,15 +28,28 @@ export interface Hit {
   handle: Handle | null;
   /** 연결 점이 붙어 있는 노드 id */
   connectFrom: string | null;
+  /** 그 연결 점의 면 */
+  connectSide: Side | null;
+  /** 선의 끝점 손잡이(edgeId도 함께 채운다) */
+  edgeEnd: EdgeEnd | null;
 }
 
-const NO_HIT: Hit = { nodeId: null, edgeId: null, handle: null, connectFrom: null };
+const NO_HIT: Hit = { nodeId: null, edgeId: null, handle: null, connectFrom: null, connectSide: null, edgeEnd: null };
 
 export function hitOf(el: EventTarget | null): Hit {
   if (!el || typeof (el as Element).closest !== 'function') return NO_HIT;
   const target = el as Element;
+  const endEl = target.closest('[data-edge-end]');
+  if (endEl) {
+    const end = endEl.getAttribute('data-edge-end');
+    const edgeId = endEl.getAttribute('data-edge-end-of');
+    if ((end === 'source' || end === 'target') && edgeId) return { ...NO_HIT, edgeEnd: end, edgeId };
+  }
   const dot = target.closest('[data-connect-from]');
-  if (dot) return { ...NO_HIT, connectFrom: dot.getAttribute('data-connect-from') };
+  if (dot) {
+    const side = dot.getAttribute('data-side');
+    return { ...NO_HIT, connectFrom: dot.getAttribute('data-connect-from'), connectSide: isSide(side) ? side : null };
+  }
   const handleEl = target.closest('[data-handle]');
   if (handleEl) {
     const handle = handleEl.getAttribute('data-handle');
@@ -193,8 +207,12 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
 
         const hit = hitOf(e.target);
         const connectTool = u.tool === 'connect' || u.tool === 'connect-double';
+        if (hit.edgeEnd && hit.edgeId) {
+          start(e, startEdgeEnd(c, p, hit.edgeId, hit.edgeEnd));
+          return;
+        }
         if (hit.connectFrom) {
-          start(e, startConnect(c, p, hit.connectFrom, { double: u.tool === 'connect-double' }));
+          start(e, startConnect(c, p, hit.connectFrom, { double: u.tool === 'connect-double', sourceSide: hit.connectSide }));
           return;
         }
         if (hit.handle && hit.nodeId) {
@@ -262,7 +280,7 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
         const u = ui();
         if (u.tool === 'pan' || presetOfTool(u.tool) || canvasLocal().spaceHeld) return;
         const hit = hitAt(e.currentTarget, e.clientX, e.clientY, e.target);
-        if (hit.connectFrom || hit.handle) return;
+        if (hit.connectFrom || hit.handle || hit.edgeEnd) return;
         if (hit.nodeId) {
           if (!room.nodes.has(hit.nodeId)) return;
           u.setSelection([hit.nodeId]);

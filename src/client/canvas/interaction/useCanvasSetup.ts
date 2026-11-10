@@ -93,7 +93,7 @@ export function useCanvasCursor(): CanvasCursor {
   if (mode === 'pan') return { kind: 'forced', cursor: 'grabbing' };
   if (mode === 'move') return { kind: 'forced', cursor: 'move' };
   if (mode === 'resize') return { kind: 'forced', cursor: activeHandle ? HANDLE_CURSOR[activeHandle] : 'default' };
-  if (mode === 'connect') return { kind: 'forced', cursor: 'crosshair' };
+  if (mode === 'connect' || mode === 'edge-end') return { kind: 'forced', cursor: 'crosshair' };
   if (mode === 'marquee') return { kind: 'forced', cursor: 'default' };
   if (spaceHeld || tool === 'pan') return { kind: 'forced', cursor: 'grab' };
   if (tool === 'connect' || tool === 'connect-double') return { kind: 'forced', cursor: 'crosshair' };
