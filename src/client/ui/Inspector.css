@@ -1,0 +1,63 @@
+/* 오른쪽 속성 패널. 위치는 RoomPage의 slot이 잡고, 여기서는 폭과 안쪽 배치만 정한다. */
+.inspector { display: flex; flex-direction: column; flex: 0 1 auto; width: 260px; min-height: 0; }
+.inspector-title { flex: 0 0 auto; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.inspector-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.inspector-keyed { display: contents; }
+.inspector-footer { flex: 0 0 auto; padding: 10px 12px; border-top: 1px solid var(--border); }
+
+.inspector-section { display: flex; flex-direction: column; gap: var(--gap); padding: 10px 12px 12px; border-bottom: 1px solid var(--border); }
+.inspector-section:last-child { border-bottom: 0; }
+.inspector-section-title { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.inspector-hint { font-size: 12px; color: var(--text-dim); }
+.inspector-wide { width: 100%; }
+
+/* 종류 격자: 6칸 2줄 */
+.inspector-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.inspector-preset { display: flex; align-items: center; justify-content: center; height: 34px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.inspector-preset:hover { background: var(--bg-hover); }
+.inspector-preset.is-active { background: var(--bg-active); border-color: var(--accent); color: var(--accent); }
+.inspector-preset:focus-visible, .inspector-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inspector-preset-name { font-size: 12px; }
+
+/* 입력 */
+.inspector-input { width: 100%; }
+.inspector-textarea { display: block; height: auto; padding: 6px 10px; line-height: 18px; resize: vertical; min-height: 50px; max-height: 200px; }
+.inspector-input:disabled { background: var(--bg-hover); color: var(--text-faint); }
+
+.inspector-row { display: flex; flex-direction: column; gap: 4px; }
+.inspector-row-label { font-size: 12px; }
+
+.inspector-segmented { display: flex; width: 100%; }
+.inspector-segmented > button { flex: 1 1 0; min-width: 0; padding: 0 6px; }
+.inspector-segmented > button:disabled { color: var(--text-faint); cursor: default; }
+.inspector-segmented > button:disabled:hover { background: transparent; }
+.inspector-segmented > button.is-active:hover { background: var(--accent-hover); }
+.inspector-segmented > button.is-active:disabled { background: var(--border-strong); color: #fff; }
+
+/* 켜고 끄는 줄 */
+.inspector-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); width: 100%; height: 30px; padding: 0 2px; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; text-align: left; }
+.inspector-toggle:hover .inspector-switch { border-color: var(--text-faint); }
+.inspector-switch { position: relative; flex: 0 0 auto; width: 30px; height: 18px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-hover); transition: background 0.12s, border-color 0.12s; }
+.inspector-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--border-strong); transition: transform 0.12s; }
+.inspector-toggle.is-on .inspector-switch, .inspector-toggle.is-on:hover .inspector-switch { background: var(--accent); border-color: var(--accent); }
+.inspector-toggle.is-on .inspector-switch::after { transform: translateX(12px); box-shadow: none; }
+/* 여러 개 선택에서 일부만 켜진 상태 */
+.inspector-toggle.is-mixed .inspector-switch { background: var(--accent-soft); border-color: var(--accent); }
+.inspector-toggle.is-mixed .inspector-switch::after { transform: translateX(6px); background: var(--accent); box-shadow: none; }
+
+/* 크기 */
+.inspector-size { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.inspector-size-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; }
+
+/* 선 */
+.inspector-edge-name, .inspector-summary { padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.inspector-edge-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspector-cardinality { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* 정렬 */
+.inspector-align { display: flex; gap: 4px; }
+.inspector-align > .btn-icon { flex: 1 1 0; min-width: 0; }
+.inspector-distribute { flex: 1 1 0; min-width: 0; padding: 0 8px; font-size: 12px; }
+
+.inspector-delete { width: 100%; color: var(--danger); }
+.inspector-delete:hover { border-color: var(--danger); }

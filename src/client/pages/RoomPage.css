@@ -1,0 +1,13 @@
+.room { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg-canvas); }
+.room-top { flex: 0 0 var(--topbar-h); height: var(--topbar-h); background: var(--bg-panel); border-bottom: 1px solid var(--border); z-index: 30; }
+.room-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* 패널이 놓이는 자리. slot 자체는 클릭을 통과시키고 안의 패널만 클릭을 받는다. */
+.slot { position: absolute; z-index: 20; pointer-events: none; display: flex; gap: var(--gap); }
+.slot > * { pointer-events: auto; }
+.slot-left { left: 12px; top: 12px; bottom: 12px; flex-direction: column; justify-content: flex-start; }
+.slot-right { right: 12px; top: 12px; bottom: 12px; flex-direction: column; align-items: flex-end; overflow: hidden; }
+.slot-right > * { max-height: 100%; }
+.slot-bottom-left { left: 84px; bottom: 12px; align-items: flex-end; }
+.slot-bottom-right { right: 12px; bottom: 12px; align-items: flex-end; }
+/* 미니맵이 켜져 있으면 오른쪽 패널이 미니맵을 덮지 않게 아래를 비운다 */
+.room-body[data-minimap='on'] .slot-right { bottom: 176px; }

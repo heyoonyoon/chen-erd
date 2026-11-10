@@ -1,0 +1,38 @@
+# 의존성과 빌드 결과물(이미지 안에서 새로 만든다)
+node_modules
+dist
+
+# 실행 중에 생기는 데이터
+data
+backups
+
+# 버전 관리, 편집기, 운영체제 파일
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# 비밀 값
+.env
+.env.*
+*.pem
+
+# 테스트와 그 결과물(이미지에는 필요 없다)
+e2e
+playwright.config.ts
+test-results
+playwright-report
+coverage
+**/*.test.ts
+**/*.test.tsx
+
+# 배포 설정과 문서
+Dockerfile
+.dockerignore
+docker-compose.yml
+deploy
+README.md
+LICENSE
+*.log

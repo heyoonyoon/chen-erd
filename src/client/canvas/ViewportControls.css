@@ -1,0 +1,23 @@
+/* 격자, 확대/축소 버튼 묶음, 미니맵 [담당: viewport 에이전트] */
+
+/* 격자: 옅은 회색 점 */
+.viewport-grid { pointer-events: none; }
+.viewport-grid-dot { fill: var(--border-strong); }
+
+/* 확대/축소 버튼 묶음 */
+.zoom-controls { display: flex; align-items: center; gap: 2px; padding: 4px; user-select: none; }
+.zoom-controls .btn { height: 28px; color: var(--text-dim); }
+.zoom-controls .btn:hover:not(:disabled) { color: var(--text); }
+.zoom-controls .btn-icon { width: 28px; }
+.zoom-controls .btn.is-active { border-color: transparent; color: var(--accent); }
+.zoom-controls-level { min-width: 52px; padding: 0 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.zoom-controls-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border); }
+
+/* 미니맵 */
+.minimap { overflow: hidden; line-height: 0; user-select: none; }
+.minimap-svg { display: block; background: var(--bg-canvas); cursor: pointer; touch-action: none; }
+.minimap-svg.is-dragging { cursor: grabbing; }
+.minimap-edge { fill: none; stroke: var(--border-strong); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.minimap-node { fill: var(--bg-panel); stroke: var(--text-dim); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.minimap-node-note { stroke: var(--border-strong); }
+.minimap-view { fill: var(--accent); fill-opacity: 0.14; stroke: var(--accent); stroke-width: 1; pointer-events: none; }

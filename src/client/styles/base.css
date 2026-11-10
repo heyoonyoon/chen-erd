@@ -1,0 +1,65 @@
+/*
+ * 공통 디자인 토큰과 기본 부품. (CORE 파일)
+ * 각 컴포넌트는 자기 CSS 파일을 따로 만들고, 클래스 이름 앞에 컴포넌트 이름을 붙인다(.toolbar-*, .inspector-*).
+ * 색과 간격은 반드시 아래 변수를 쓴다.
+ */
+:root {
+  --bg-canvas: #f7f7f8;
+  --bg-panel: #ffffff;
+  --bg-hover: #f1f3f5;
+  --bg-active: #e7f1ff;
+  --border: #e2e4e8;
+  --border-strong: #c9ccd2;
+  --text: #1a1a1a;
+  --text-dim: #6b7280;
+  --text-faint: #9ca3af;
+  --accent: #0d6efd;
+  --accent-hover: #0b5ed7;
+  --accent-soft: #e7f1ff;
+  --danger: #dc3545;
+  --warning: #e08a00;
+  --success: #198754;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --gap: 8px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
+  --topbar-h: 48px;
+  --font: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: var(--font); font-size: 13px; line-height: 1.45; color: var(--text); background: var(--bg-canvas); -webkit-font-smoothing: antialiased; overscroll-behavior: none; word-break: keep-all; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, p { margin: 0; }
+
+/* 떠 있는 패널 */
+.panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel-title { font-size: 12px; font-weight: 600; color: var(--text-dim); padding: 10px 12px 6px; }
+
+/* 버튼 */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-panel); cursor: pointer; white-space: nowrap; transition: background 0.12s, border-color 0.12s; }
+.btn:hover { background: var(--bg-hover); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-icon { width: 32px; padding: 0; }
+.btn.is-active { background: var(--bg-active); border-color: var(--accent); color: var(--accent); }
+
+/* 입력 */
+.input { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: #fff; outline: none; min-width: 0; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* 여러 개 중 하나 고르기 */
+.segmented { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; background: #fff; }
+.segmented > button { height: 30px; min-width: 34px; padding: 0 10px; border: 0; border-right: 1px solid var(--border); background: transparent; cursor: pointer; }
+.segmented > button:last-child { border-right: 0; }
+.segmented > button:hover { background: var(--bg-hover); }
+.segmented > button.is-active { background: var(--accent); color: #fff; }
+
+.kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: #fafafa; font-family: var(--font-mono); font-size: 11px; text-align: center; color: var(--text-dim); }
+.muted { color: var(--text-dim); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

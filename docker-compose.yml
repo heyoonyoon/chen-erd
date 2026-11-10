@@ -1,0 +1,62 @@
+# 운영용 구성(EC2에서 사용). 이미지는 GitHub Actions가 빌드해 GHCR에 올린 것을 내려받아 실행만 한다.
+# 설정은 같은 폴더의 .env 파일로 한다(.env.example 참고).
+#
+#   기본(HTTP)  : app이 80번 포트를 직접 연다.
+#   HTTPS 프로필: caddy가 80/443을 받고 app은 서버 안쪽(127.0.0.1)에만 연다.
+#                 .env에 COMPOSE_PROFILES=https, DOMAIN, APP_PUBLISH=127.0.0.1:8787 세 줄이 필요하다.
+
+name: chen-erd
+
+services:
+  app:
+    image: ghcr.io/heyoonyoon/chen-erd:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8787"
+      DATA_DIR: /data
+    ports:
+      # 호스트 쪽 주소. 기본은 모든 인터페이스의 80번.
+      - "${APP_PUBLISH:-80}:8787"
+    volumes:
+      - erd-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  # 다이어그램 저장소. 지우면 모든 방의 내용이 사라진다.
+  erd-data:
+    name: chen-erd-data
+  # 인증서와 Caddy 상태
+  caddy-data:
+    name: chen-erd-caddy-data
+  caddy-config:
+    name: chen-erd-caddy-config

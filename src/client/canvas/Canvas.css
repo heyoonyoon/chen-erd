@@ -1,0 +1,40 @@
+/* 캔버스와 조작용 표시. [담당: canvas 에이전트] */
+.canvas-root { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: var(--bg-canvas); user-select: none; -webkit-user-select: none; }
+.canvas-svg { display: block; width: 100%; height: 100%; outline: none; }
+.canvas-svg text { user-select: none; -webkit-user-select: none; }
+
+/* 커서: 선택 도구에서는 대상마다 다르고, 그 밖에는 캔버스 전체가 .canvas-root에 지정한 커서를 따른다 */
+.canvas-root[data-cursor='select'] .canvas-svg [data-node-id] { cursor: move; }
+.canvas-root[data-cursor='select'] .canvas-svg [data-edge-id] { cursor: pointer; }
+.canvas-root[data-cursor='forced'] .canvas-svg,
+.canvas-root[data-cursor='forced'] .canvas-svg * { cursor: inherit !important; }
+
+/* 선택 외곽선. 배율과 무관하게 1px */
+.canvas-sel-outline,
+.canvas-sel-group { fill: none; stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.canvas-sel-group { stroke-dasharray: 4 3; }
+
+/* 크기 조절 손잡이 */
+.canvas-handle { fill: #fff; stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.canvas-handle-hit { fill: transparent; stroke: none; }
+
+/* 연결 점 */
+.canvas-connect-dot { cursor: crosshair; }
+.canvas-connect-dot-hit { fill: transparent; stroke: none; }
+.canvas-connect-dot-mark { fill: #fff; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: fill 0.1s; }
+.canvas-connect-dot:hover .canvas-connect-dot-mark { fill: var(--accent); }
+
+/* 연결 중인 임시 선과 후보 표시 */
+.canvas-draft-line { stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; fill: none; }
+.canvas-draft-line.is-invalid { stroke: var(--danger); stroke-dasharray: 5 4; }
+.canvas-draft-target { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.canvas-draft-target.is-valid { stroke: var(--accent); fill: rgba(13, 110, 253, 0.06); }
+.canvas-draft-target.is-invalid { stroke: var(--danger); fill: rgba(220, 53, 69, 0.06); }
+.canvas-connect-reason { position: absolute; z-index: 5; max-width: 260px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--danger); color: #fff; font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
+
+/* 상자 선택 */
+.canvas-marquee { fill: rgba(13, 110, 253, 0.08); stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+/* 빈 캔버스 안내문 */
+.canvas-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; color: var(--text-faint); font-size: 13px; pointer-events: none; white-space: nowrap; }
+.canvas-empty-title { margin-bottom: 6px; font-size: 15px; font-weight: 600; color: var(--text-dim); }

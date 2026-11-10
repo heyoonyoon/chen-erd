@@ -1,0 +1,72 @@
+/*
+ * 도형 글자 편집기. 바깥 상자는 노드 사각형과 같은 크기이고 배율은 transform으로 맞춘다.
+ * 안쪽 상자는 보이지 않는 복제 글자(mirror)로 크기가 정해지고 입력창이 그 위를 꽉 채운다.
+ */
+.text-editor {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 0 0;
+  color: var(--text);
+  cursor: text;
+}
+
+/* 글자가 도형보다 길면 양쪽으로 똑같이 넘친다(가운데 유지) */
+.text-editor-grow {
+  position: relative;
+  flex: none;
+  min-width: 100%;
+}
+
+.text-editor-mirror,
+.text-editor-input {
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  white-space: pre;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.text-editor-mirror {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.text-editor-input {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  caret-color: var(--accent);
+  resize: none;
+  overflow: hidden;
+  scrollbar-width: none;
+  appearance: none;
+}
+.text-editor-input::-webkit-scrollbar {
+  display: none;
+}
+
+/* 식별자와 부분 키는 편집 중에도 밑줄을 보여 준다 */
+.text-editor.is-key .text-editor-input {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.text-editor.is-partial-key .text-editor-input {
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}

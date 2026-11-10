@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치(또는 같은 PR)에 새 커밋이 오면 앞선 실행은 취소한다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 타입 검사, 테스트, 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: 브라우저 테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # 서버를 띄우고 브라우저 두 개로 동시 편집과 커서 공유를 확인한다
+      - run: npm run e2e
+
+  image:
+    name: 이미지 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # 레지스트리에 올리지 않고, 아래 확인을 위해 러너의 Docker에만 넣는다.
+      - name: 이미지 빌드
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: chen-erd:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 컨테이너 실행 확인
+        run: |
+          docker run -d --name erd-ci -p 127.0.0.1:18787:8787 chen-erd:ci
+          ok=0
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:18787/api/health; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::컨테이너가 30초 안에 /api/health에 응답하지 않았습니다."
+            docker logs erd-ci || true
+            exit 1
+          fi
+          # 비루트 사용자로 실행되고 데이터 폴더에 쓸 수 있어야 한다.
+          docker exec erd-ci sh -c 'test "$(id -u)" -ne 0 && touch "$DATA_DIR/.write-test" && rm "$DATA_DIR/.write-test"'
+
+      - name: 컨테이너 정리
+        if: always()
+        run: docker rm -f erd-ci >/dev/null 2>&1 || true

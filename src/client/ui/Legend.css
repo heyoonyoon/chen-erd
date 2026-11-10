@@ -1,0 +1,21 @@
+/* 표기법 안내 패널. 자리는 RoomPage의 slot-right가 잡는다. */
+.legend { display: flex; flex-direction: column; flex: 0 1 auto; width: 300px; min-height: 0; overflow: hidden; }
+
+.legend-head { display: flex; align-items: center; justify-content: space-between; flex: none; padding: calc(var(--gap) / 2) calc(var(--gap) / 2) calc(var(--gap) / 2) calc(var(--gap) * 1.5); border-bottom: 1px solid var(--border); }
+.legend-title { font-size: 13px; font-weight: 600; }
+.legend-close { color: var(--text-dim); }
+
+.legend-body { flex: 1 1 auto; min-height: 0; padding: 0 calc(var(--gap) * 1.5) calc(var(--gap) * 1.25); overflow-y: auto; overscroll-behavior: contain; }
+
+.legend-section + .legend-section { border-top: 1px solid var(--border); }
+.legend-section-title { padding: calc(var(--gap) * 1.25) 0 calc(var(--gap) / 4); font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.legend-list { margin: 0; padding: 0 0 var(--gap); list-style: none; }
+
+.legend-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; column-gap: calc(var(--gap) * 1.25); padding: calc(var(--gap) / 4) 0; }
+.legend-icon { display: flex; align-items: center; justify-content: center; height: 32px; color: var(--text); }
+.legend-icon > svg { display: block; }
+.legend-name { font-weight: 600; }
+.legend-en { margin-left: calc(var(--gap) * 0.75); font-size: 11px; color: var(--text-faint); }
+.legend-desc { display: block; font-size: 12px; color: var(--text-dim); }
+
+.legend-foot { padding-top: calc(var(--gap) * 1.25); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-faint); }

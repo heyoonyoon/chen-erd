@@ -1,0 +1,196 @@
+name: Deploy
+
+# 실행되는 경우는 두 가지뿐이다.
+#   1) Actions 탭에서 직접 실행(workflow_dispatch)
+#   2) main의 CI가 성공했고 저장소 변수 DEPLOY_ENABLED가 'true'일 때(workflow_run)
+# 변수를 만들지 않았다면 2)는 건너뛰므로 자동 배포는 일어나지 않는다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 배포할 커밋의 전체 SHA, 브랜치 또는 태그. 비우면 위에서 고른 브랜치의 최신 커밋
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+# 배포는 한 번에 하나만. 진행 중인 배포는 끊지 않고 다음 것이 기다린다.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/heyoonyoon/chen-erd
+  APP_DIR: /opt/chen-erd
+
+jobs:
+  image:
+    name: 이미지 빌드와 푸시
+    # workflow_run은 포크의 main 브랜치에서 온 PR에도 걸릴 수 있으므로 이 저장소 main의 push로 돈 CI인지까지 확인한다.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        vars.DEPLOY_ENABLED == 'true' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: 배포 설정 확인
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          missing=()
+          [ -n "$EC2_HOST" ] || missing+=("EC2_HOST")
+          [ -n "$EC2_USER" ] || missing+=("EC2_USER")
+          [ -n "$EC2_SSH_KEY" ] || missing+=("EC2_SSH_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::저장소 시크릿이 비어 있습니다: ${missing[*]}. Settings > Secrets and variables > Actions에서 등록한 뒤 다시 실행하십시오."
+            exit 1
+          fi
+
+      # CI가 끝나서 실행된 경우에는 CI가 검증한 바로 그 커밋을 배포한다.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+
+      - name: 배포할 커밋 확인
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 기본은 linux/amd64(t3 계열). Graviton(t4g 계열)이면 저장소 변수 IMAGE_PLATFORMS를 linux/arm64로 둔다.
+      - uses: docker/setup-qemu-action@v4
+        if: vars.IMAGE_PLATFORMS != '' && vars.IMAGE_PLATFORMS != 'linux/amd64'
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 이미지 빌드와 푸시
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: ${{ vars.IMAGE_PLATFORMS || 'linux/amd64' }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.commit.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: EC2 배포
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SHA: ${{ needs.image.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.image.outputs.sha }}
+
+      - name: SSH 준비
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          port="${EC2_PORT:-22}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # 호스트 키는 반드시 검증한다. EC2_KNOWN_HOSTS 시크릿이 있으면 그 값만 믿고,
+          # 없으면 이번 실행에서 읽어 온 키로 고정한다(이후의 모든 ssh, scp가 같은 키를 요구한다).
+          if [ -n "$EC2_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$EC2_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          else
+            echo "::notice::EC2_KNOWN_HOSTS 시크릿이 없어 ssh-keyscan으로 호스트 키를 읽어 옵니다. 키를 고정하려면 README의 배포 절을 참고하십시오."
+            ssh-keyscan -T 15 -p "$port" "$EC2_HOST" > ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::호스트 키를 얻지 못했습니다. EC2_HOST와 EC2_PORT, 보안 그룹의 SSH 인바운드 규칙을 확인하십시오."
+            exit 1
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+          {
+            echo "Host ec2"
+            echo "  HostName ${EC2_HOST}"
+            echo "  User ${EC2_USER}"
+            echo "  Port ${port}"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  UserKnownHostsFile ~/.ssh/known_hosts"
+            echo "  BatchMode yes"
+            echo "  ConnectTimeout 20"
+            echo "  ServerAliveInterval 15"
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+          ssh ec2 'docker info --format "Docker {{.ServerVersion}}" && docker compose version' || {
+            echo "::error::EC2에 접속하지 못했거나 접속한 사용자가 docker를 실행하지 못했습니다. 시크릿 값과 보안 그룹을 확인하고, 서버에서 deploy/ec2-setup.sh를 실행했는지 확인하십시오."
+            exit 1
+          }
+
+      - name: 설정 파일 복사
+        run: |
+          ssh ec2 "mkdir -p '${APP_DIR}/deploy' '${APP_DIR}/backups'"
+          scp -q docker-compose.yml .env.example "ec2:${APP_DIR}/"
+          scp -q deploy/Caddyfile deploy/remote-deploy.sh deploy/backup.sh "ec2:${APP_DIR}/deploy/"
+          ssh ec2 "chmod +x '${APP_DIR}/deploy/remote-deploy.sh' '${APP_DIR}/deploy/backup.sh'"
+
+      # 패키지가 비공개여도 내려받을 수 있도록 이 실행의 토큰으로 잠깐 로그인한다(토큰은 실행이 끝나면 무효가 된다).
+      - name: 이미지 교체
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh ec2 "docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
+          ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' up '${SHA}'"
+
+      - name: 헬스 체크
+        run: ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' health 60"
+
+      - name: 배포 결과 기록
+        run: echo "배포한 이미지는 \`${IMAGE_NAME}:${SHA}\` 입니다." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 정리
+        if: always()
+        run: |
+          if [ -f ~/.ssh/config ]; then
+            ssh ec2 'docker logout ghcr.io' >/dev/null 2>&1 || true
+          fi
+          rm -f ~/.ssh/deploy_key
