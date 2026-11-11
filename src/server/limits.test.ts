@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { ClientLimits, clientIp, isPrivateAddress } from './limits';
+import { ClientLimits, RequestRateLimiter, clientIp, isPrivateAddress } from './limits';
 
 function request(remoteAddress: string, forwarded?: string): IncomingMessage {
   return {
@@ -38,6 +38,28 @@ describe('ClientLimits', () => {
     now += 30_000;
     expect(limits.tryCreateRoom('1.1.1.1', 'room-b')).toBe(true);
     expect(limits.tryCreateRoom('1.1.1.1', 'room-d')).toBe(false);
+  });
+});
+
+describe('RequestRateLimiter', () => {
+  it('한 주소가 단위 시간에 보낼 수 있는 요청 수를 막고 남은 시간을 초로 알려 준다', () => {
+    let now = 1_000_000;
+    const rate = new RequestRateLimiter({ max: 3, windowMs: 60_000, now: () => now });
+    expect([rate.take('1.1.1.1'), rate.take('1.1.1.1'), rate.take('1.1.1.1')]).toEqual([0, 0, 0]);
+    expect(rate.take('1.1.1.1')).toBe(60);
+    // 다른 주소는 따로 센다
+    expect(rate.take('2.2.2.2')).toBe(0);
+    now += 45_500;
+    expect(rate.take('1.1.1.1')).toBe(15);
+    // 구간이 끝나면 다시 받는다
+    now += 14_500;
+    expect(rate.take('1.1.1.1')).toBe(0);
+    expect(rate.take('1.1.1.1')).toBe(0);
+  });
+
+  it('한도가 0이면 막지 않는다', () => {
+    const rate = new RequestRateLimiter();
+    for (let i = 0; i < 1000; i++) expect(rate.take('1.1.1.1')).toBe(0);
   });
 });
 

@@ -70,6 +70,14 @@ interface Room {
   unloadTimer: NodeJS.Timeout | null;
 }
 
+/** 방의 문서를 내줄 수 없을 때. closing = 서버가 내려가는 중, load-failed = 저장된 파일을 읽지 못함 */
+export class RoomUnavailableError extends Error {
+  constructor(readonly reason: 'closing' | 'load-failed') {
+    super(reason === 'closing' ? 'server shutting down' : 'room load failed');
+    this.name = 'RoomUnavailableError';
+  }
+}
+
 export class SyncHub {
   private readonly rooms = new Map<string, Room>();
   private readonly maxClientsPerRoom: number;
@@ -166,6 +174,34 @@ export class SyncHub {
       void room.ready.then((ok) => {
         if (ok && room.conns.get(ws) === conn) this.attach(room, conn);
       });
+    }
+  }
+
+  /**
+   * 웹소켓 밖(HTTP API)에서 방의 문서를 읽거나 고친다. roomId는 검증을 통과한 값이어야 한다.
+   * 방이 메모리에 없으면 읽어 온 뒤 fn을 부른다. fn은 동기 함수여야 하고, 문서를 고치면 접속자들에게 바로 중계된다.
+   * 끝났을 때 접속자가 없으면 마지막 사람이 나간 때처럼 저장하고 잠시 뒤 메모리에서 내린다.
+   * 읽지 못한 방은 빈 문서로 내주지 않고 RoomUnavailableError를 던진다(빈 문서가 저장되면 기존 파일을 덮어쓴다).
+   * fn이 두 번째 인자 save를 부르면 문서가 바뀌지 않았어도 저장한다(빈 방을 새로 만들 때).
+   */
+  async withDoc<T>(roomId: string, fn: (doc: Y.Doc, save: () => void) => T): Promise<T> {
+    if (this.closing) throw new RoomUnavailableError('closing');
+    const room = this.getRoom(roomId);
+    if (room.unloadTimer) {
+      clearTimeout(room.unloadTimer);
+      room.unloadTimer = null;
+    }
+    const ok = await room.ready;
+    if (!ok || room.state !== 'ready') throw new RoomUnavailableError('load-failed');
+    // 기다리는 사이에 종료가 시작됐다면 고친 내용이 저장된다는 보장이 없다
+    if (this.closing) throw new RoomUnavailableError('closing');
+    try {
+      return fn(room.doc, () => this.markDirty(room));
+    } finally {
+      if (room.conns.size === 0 && room.state === 'ready') {
+        void this.flush(room);
+        this.scheduleUnload(room);
+      }
     }
   }
 
@@ -445,6 +481,12 @@ export class SyncHub {
     // 마지막 사람이 나간 때부터 자동 삭제 기한을 센다
     await this.persistence.touch(room.id);
     if (room.conns.size > 0 || room.state !== 'ready' || this.closing) return;
+    // 기다리는 사이에 API가 문서를 쓰고 갔다면 내리기가 다시 예약돼 있다. 저장할 것이 남았을 수 있으니 그쪽에 맡긴다
+    if (room.unloadTimer) return;
+    if (room.dirty) {
+      this.scheduleUnload(room);
+      return;
+    }
     this.destroyRoom(room);
   }
 

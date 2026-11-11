@@ -29,6 +29,7 @@ export default defineConfig({
       // 테스트는 한 주소에서 방을 여러 개 만들고 여러 번 접속하므로 접속 제한을 끈다
       MAX_CONNECTIONS_PER_IP: '0',
       ROOM_CREATE_INTERVAL_MS: '0',
+      API_REQUESTS_PER_MINUTE: '0',
     },
   },
 });

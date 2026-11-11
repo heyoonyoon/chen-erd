@@ -1,5 +1,5 @@
 /**
- * 접속 제한. 한 IP가 동시에 열 수 있는 연결 수와 새 방을 만드는 빈도를 막는다.
+ * 접속 제한. 한 IP가 동시에 열 수 있는 연결 수와 새 방을 만드는 빈도, API 요청 빈도를 막는다.
  * 닫기 코드는 4400~4499라서 y-websocket 클라이언트가 다시 접속을 시도하지 않는다.
  */
 import type { IncomingMessage } from 'node:http';
@@ -65,6 +65,53 @@ export class ClientLimits {
     if (this.created.size < 10_000) return;
     for (const [ip, entry] of this.created) {
       if (now - entry.at >= this.roomCreateIntervalMs) this.created.delete(ip);
+    }
+  }
+}
+
+export interface RequestRateOptions {
+  /** 한 IP가 window 동안 보낼 수 있는 요청 수. 0 이하면 제한하지 않는다 */
+  max?: number;
+  /** 세는 단위 시간. 기본 1분 */
+  windowMs?: number;
+  now?: () => number;
+}
+
+/** HTTP API의 요청 빈도 제한. IP마다 단위 시간 안의 요청 수를 센다(고정 구간). */
+export class RequestRateLimiter {
+  readonly max: number;
+  readonly windowMs: number;
+  private readonly now: () => number;
+  /** IP별 현재 구간이 시작된 시각과 그 안에서 받은 요청 수 */
+  private readonly windows = new Map<string, { start: number; count: number }>();
+
+  constructor(opts: RequestRateOptions = {}) {
+    this.max = opts.max ?? 0;
+    this.windowMs = opts.windowMs ?? 60_000;
+    this.now = opts.now ?? Date.now;
+  }
+
+  /** 요청 하나를 센다. 받아도 되면 0, 한도를 넘었으면 다시 보낼 수 있을 때까지 남은 초(1 이상) */
+  take(ip: string): number {
+    if (this.max <= 0) return 0;
+    const now = this.now();
+    const current = this.windows.get(ip);
+    if (!current || now - current.start >= this.windowMs) {
+      this.prune(now);
+      this.windows.set(ip, { start: now, count: 1 });
+      return 0;
+    }
+    if (current.count < this.max) {
+      current.count += 1;
+      return 0;
+    }
+    return Math.max(1, Math.ceil((current.start + this.windowMs - now) / 1000));
+  }
+
+  private prune(now: number): void {
+    if (this.windows.size < 10_000) return;
+    for (const [ip, entry] of this.windows) {
+      if (now - entry.start >= this.windowMs) this.windows.delete(ip);
     }
   }
 }

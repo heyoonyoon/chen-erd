@@ -20,6 +20,7 @@ export default defineConfig({
     proxy: {
       '/ws': { target: SERVER.replace(/^http/, 'ws'), ws: true },
       '/api': { target: SERVER },
+      '/mcp': { target: SERVER },
     },
   },
   test: {

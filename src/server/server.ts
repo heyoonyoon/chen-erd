@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { ROOM_ID_PATTERN } from '../shared/types';
 import { createApp } from './http';
-import { CLOSE_ROOM_RATE_LIMIT, CLOSE_TOO_MANY_CONNECTIONS, ClientLimits, clientIp } from './limits';
+import { CLOSE_ROOM_RATE_LIMIT, CLOSE_TOO_MANY_CONNECTIONS, ClientLimits, RequestRateLimiter, clientIp } from './limits';
 import { Persistence, type Logger } from './persistence';
 import { CLOSE_INVALID_ROOM, SyncHub } from './sync';
 
@@ -34,6 +34,14 @@ export interface ErdServerOptions {
   maxConnectionsPerIp?: number;
   /** 같은 IP가 새 방을 다시 만들 수 있기까지의 시간. 기본 0(제한 없음) */
   roomCreateIntervalMs?: number;
+  /** 한 IP가 1분 동안 보낼 수 있는 모델 API 요청 수. 기본 0(제한 없음) */
+  apiRequestsPerMinute?: number;
+  /** 한 IP가 1분 동안 보낼 수 있는 MCP 요청 수(POST /mcp). 기본 0(제한 없음) */
+  mcpRequestsPerMinute?: number;
+  /** 한 IP가 1분 동안 MCP로 만들 수 있는 새 방 수. 기본 0(제한 없음) */
+  mcpRoomCreatesPerMinute?: number;
+  /** 밖에서 보이는 주소(https://modelll.app). MCP가 돌려주는 방 주소에 쓴다. 없으면 요청의 Host에서 알아낸다 */
+  publicUrl?: string;
   /** 이 시간 동안 아무도 열지 않은 방을 지운다. 기본 0(지우지 않음) */
   roomTtlMs?: number;
   /** 지울 방을 찾는 주기. 기본 6시간 */
@@ -89,6 +97,10 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
     maxConnectionsPerIp: opts.maxConnectionsPerIp,
     roomCreateIntervalMs: opts.roomCreateIntervalMs,
   });
+  const apiRate = new RequestRateLimiter({ max: opts.apiRequestsPerMinute });
+  // MCP는 여러 사람이 같은 주소로 들어오므로 모델 API와 따로 센다
+  const mcpRate = new RequestRateLimiter({ max: opts.mcpRequestsPerMinute });
+  const mcpCreateRate = new RequestRateLimiter({ max: opts.mcpRoomCreatesPerMinute });
 
   /** 새 방이면 만드는 빈도를 확인한 뒤 방에 넣는다. 확인하는 동안 온 메시지는 모아 두었다가 넘긴다. */
   async function admit(ws: WebSocket, roomId: string, ip: string): Promise<void> {
@@ -122,6 +134,22 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
     stats: () => hub.stats(),
     roomInfo: (roomId) => hub.roomInfo(roomId),
     uptime: () => Math.round((Date.now() - startedAt) / 1000),
+    isNewRoom: (roomId) => hub.isNewRoom(roomId),
+    withDoc: (roomId, fn) => hub.withDoc(roomId, fn),
+    tryCreateRoom: (ip, roomId) => {
+      const allowed = limits.tryCreateRoom(ip, roomId);
+      if (!allowed) log(`room rate limited ip=${ip}`);
+      return allowed;
+    },
+    takeApiRequest: (ip) => apiRate.take(ip),
+    takeMcpRequest: (ip) => mcpRate.take(ip),
+    takeMcpRoomCreate: (ip) => {
+      const wait = mcpCreateRate.take(ip);
+      if (wait > 0) log(`mcp room rate limited ip=${ip}`);
+      return wait;
+    },
+    publicUrl: opts.publicUrl,
+    log,
   });
 
   let server: http.Server | null = null;

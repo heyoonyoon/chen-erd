@@ -1,5 +1,5 @@
 /**
- * Yjs 문서를 읽고 고치는 함수 모음. 문서 구조를 아는 곳은 이 파일뿐이다.
+ * Yjs 문서를 읽고 고치는 함수 모음. 문서 구조를 아는 곳은 이 파일과 shared/ydoc.ts뿐이다.
  * (CORE 파일)
  *
  * 문서 구조
@@ -11,68 +11,30 @@
  */
 import * as Y from 'yjs';
 import { nanoid } from 'nanoid';
-import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId, type Side } from '../../shared/types';
+import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId } from '../../shared/types';
+import { applyPatch, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode, toYMap } from '../../shared/ydoc';
 import { presetText } from '../i18n';
 import { fitNodeSize } from '../text/measure';
 
+// 문서를 읽고 쓰는 순수 함수는 서버(API)도 쓰므로 shared/ydoc.ts에 있다. 화면 쪽은 지금까지처럼 이 파일에서 가져다 쓴다.
+export {
+  getEdges,
+  getEdgesMap,
+  getMetaMap,
+  getNodes,
+  getNodesMap,
+  getTitle,
+  readEdge,
+  readNode,
+  type YElementMap,
+} from '../../shared/ydoc';
+
 export const LOCAL_ORIGIN = 'local';
-
-export type YElementMap = Y.Map<Y.Map<unknown>>;
-
-export function getNodesMap(doc: Y.Doc): YElementMap {
-  return doc.getMap('nodes') as YElementMap;
-}
-export function getEdgesMap(doc: Y.Doc): YElementMap {
-  return doc.getMap('edges') as YElementMap;
-}
-export function getMetaMap(doc: Y.Doc): Y.Map<unknown> {
-  return doc.getMap('meta');
-}
 
 export function newId(): string {
   return nanoid(10);
 }
 
-export function readNode(m: Y.Map<unknown>): ErdNode {
-  const o = m.toJSON() as Partial<ErdNode>;
-  return {
-    ...o,
-    id: String(o.id ?? ''),
-    kind: o.kind ?? 'entity',
-    x: Number(o.x ?? 0),
-    y: Number(o.y ?? 0),
-    w: Number(o.w ?? 100),
-    h: Number(o.h ?? 50),
-    text: String(o.text ?? ''),
-  } as ErdNode;
-}
-
-export function readEdge(m: Y.Map<unknown>): ErdEdge {
-  const o = m.toJSON() as Partial<ErdEdge>;
-  const edge: ErdEdge = {
-    id: String(o.id ?? ''),
-    source: String(o.source ?? ''),
-    target: String(o.target ?? ''),
-    double: Boolean(o.double),
-    label: String(o.label ?? ''),
-    role: String(o.role ?? ''),
-  };
-  if (isSide(o.sourceSide)) edge.sourceSide = o.sourceSide;
-  if (isSide(o.targetSide)) edge.targetSide = o.targetSide;
-  if (o.shape === 'straight' || o.shape === 'elbow') edge.shape = o.shape;
-  return edge;
-}
-
-function isSide(v: unknown): v is Side {
-  return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
-}
-
-export function getNodes(doc: Y.Doc): ErdNode[] {
-  return Array.from(getNodesMap(doc).values(), readNode);
-}
-export function getEdges(doc: Y.Doc): ErdEdge[] {
-  return Array.from(getEdgesMap(doc).values(), readEdge);
-}
 export function getNode(doc: Y.Doc, id: string): ErdNode | null {
   const m = getNodesMap(doc).get(id);
   return m ? readNode(m) : null;
@@ -85,25 +47,6 @@ export function getEdge(doc: Y.Doc, id: string): ErdEdge | null {
 /** 여러 변경을 실행 취소 한 단계로 묶는다. */
 export function transact(doc: Y.Doc, fn: () => void): void {
   doc.transact(fn, LOCAL_ORIGIN);
-}
-
-function toYMap(obj: object): Y.Map<unknown> {
-  const m = new Y.Map<unknown>();
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) m.set(k, v);
-  }
-  return m;
-}
-
-function applyPatch(m: Y.Map<unknown>, patch: object): void {
-  for (const [k, v] of Object.entries(patch)) {
-    if (k === 'id') continue;
-    if (v === undefined) {
-      if (m.has(k)) m.delete(k);
-    } else if (m.get(k) !== v) {
-      m.set(k, v);
-    }
-  }
 }
 
 export function addNodes(doc: Y.Doc, nodes: ErdNode[]): void {
@@ -193,10 +136,6 @@ export function replaceAll(doc: Y.Doc, nodes: ErdNode[], edges: ErdEdge[]): void
   });
 }
 
-export function getTitle(doc: Y.Doc): string {
-  const t = getMetaMap(doc).get('title');
-  return typeof t === 'string' ? t : '';
-}
 export function setTitle(doc: Y.Doc, title: string): void {
   transact(doc, () => getMetaMap(doc).set('title', title));
 }
