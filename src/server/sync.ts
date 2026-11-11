@@ -225,7 +225,11 @@ export class SyncHub {
   private async load(room: Room): Promise<boolean> {
     try {
       const data = await this.persistence.load(room.id);
-      if (data) Y.applyUpdate(room.doc, data, 'load');
+      if (data) {
+        Y.applyUpdate(room.doc, data, 'load');
+        // 고치지 않고 보기만 해도 "열린 방"으로 쳐서 자동 삭제 기한을 다시 센다
+        void this.persistence.touch(room.id);
+      }
     } catch (err) {
       // 읽지 못한 방을 빈 문서로 열면 저장하면서 기존 파일을 덮어쓰게 된다. 방을 열지 않는다.
       this.log(`load failed room=${room.id}: ${(err as Error).message}`);
@@ -438,6 +442,15 @@ export class SyncHub {
       this.scheduleUnload(room);
       return;
     }
+    // 마지막 사람이 나간 때부터 자동 삭제 기한을 센다
+    await this.persistence.touch(room.id);
+    if (room.conns.size > 0 || room.state !== 'ready' || this.closing) return;
     this.destroyRoom(room);
+  }
+
+  /** 오래 열리지 않은 방을 디스크에서 지운다. 지금 열려 있는 방은 건드리지 않는다. */
+  async removeExpiredRooms(ttlMs: number): Promise<string[]> {
+    if (this.closing) return [];
+    return this.persistence.removeExpired(ttlMs, (roomId) => this.rooms.has(roomId));
   }
 }

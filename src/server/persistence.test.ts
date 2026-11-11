@@ -92,4 +92,74 @@ describe('Persistence', () => {
     // 되살린 내용이 본 파일로 다시 쓰인다
     expect(readValue(await fs.readFile(path.join(dir, 'room1.bin')))).toBe('good');
   });
+
+  describe('오래 열리지 않은 방 지우기', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const setAge = async (roomId: string, days: number) => {
+      const when = new Date(Date.now() - days * DAY);
+      await fs.utimes(path.join(dir, `${roomId}.bin`), when, when);
+    };
+    const has = (roomId: string) =>
+      fs.access(path.join(dir, `${roomId}.bin`)).then(
+        () => true,
+        () => false,
+      );
+
+    it('기한이 지난 방만 백업과 함께 지운다', async () => {
+      const p = new Persistence({ dataDir: dir, backupIntervalMs: 0 });
+      await p.init();
+      await p.save('old-room', docUpdate('old'));
+      await p.save('new-room', docUpdate('new'));
+      expect(await p.listBackups('old-room')).toHaveLength(1);
+      await setAge('old-room', 31);
+      await setAge('new-room', 29);
+
+      expect(await p.removeExpired(30 * DAY, () => false)).toEqual(['old-room']);
+      expect(await has('old-room')).toBe(false);
+      expect(await has('new-room')).toBe(true);
+      await expect(fs.access(path.join(dir, 'backups', 'old-room'))).rejects.toThrow();
+      expect(await p.listBackups('new-room')).toHaveLength(1);
+      expect(await p.load('old-room')).toBeNull();
+    });
+
+    it('지금 쓰이는 방은 기한이 지나도 지우지 않는다', async () => {
+      const p = new Persistence({ dataDir: dir });
+      await p.init();
+      await p.save('open-room', docUpdate('x'));
+      await setAge('open-room', 100);
+      expect(await p.removeExpired(30 * DAY, (id) => id === 'open-room')).toEqual([]);
+      expect(await has('open-room')).toBe(true);
+    });
+
+    it('방을 연 흔적을 남기면 기한을 다시 센다', async () => {
+      const p = new Persistence({ dataDir: dir });
+      await p.init();
+      await p.save('seen-room', docUpdate('x'));
+      await setAge('seen-room', 100);
+      await p.touch('seen-room');
+      expect(await p.removeExpired(30 * DAY, () => false)).toEqual([]);
+      expect(readValue(await p.load('seen-room'))).toBe('x');
+      // 저장된 적 없는 방에 흔적을 남겨도 파일이 생기지 않는다
+      await p.touch('never-saved');
+      expect(await has('never-saved')).toBe(false);
+    });
+
+    it('기한이 0이면 아무것도 지우지 않고, 방 파일이 아닌 것은 건드리지 않는다', async () => {
+      const p = new Persistence({ dataDir: dir });
+      await p.init();
+      await p.save('room-a', docUpdate('x'));
+      await setAge('room-a', 400);
+      await fs.writeFile(path.join(dir, 'notes.txt'), 'keep');
+      await fs.writeFile(path.join(dir, 'bad name.bin'), 'keep');
+      const old = new Date(Date.now() - 400 * DAY);
+      await fs.utimes(path.join(dir, 'bad name.bin'), old, old);
+
+      expect(await p.removeExpired(0, () => false)).toEqual([]);
+      expect(await has('room-a')).toBe(true);
+      expect(await p.removeExpired(30 * DAY, () => false)).toEqual(['room-a']);
+      // 백업 폴더의 틀은 남고 그 방의 백업만 사라진다
+      expect((await fs.readdir(dir)).sort()).toEqual(['backups', 'bad name.bin', 'notes.txt']);
+      expect(await fs.readdir(path.join(dir, 'backups'))).toEqual([]);
+    });
+  });
 });

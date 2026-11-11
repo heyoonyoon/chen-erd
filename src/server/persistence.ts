@@ -54,6 +54,8 @@ export class Persistence {
   private readonly maxBackups: number;
   private readonly log: Logger;
   private readonly lastBackupAt = new Map<string, number>();
+  /** 지우는 중인 방. 같은 방을 여는 쪽은 지우기가 끝난 뒤에 읽는다 */
+  private readonly removing = new Map<string, Promise<void>>();
   private seq = 0;
 
   constructor(opts: PersistenceOptions) {
@@ -99,6 +101,7 @@ export class Persistence {
    */
   async load(roomId: string): Promise<Uint8Array | null> {
     const file = this.roomFile(roomId);
+    await this.removing.get(roomId);
     let data: Uint8Array;
     try {
       data = await fs.readFile(file);
@@ -137,6 +140,59 @@ export class Persistence {
       // 백업 실패가 본 저장의 실패는 아니다
       this.log(`backup failed room=${roomId}: ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * 방을 연 흔적을 남긴다. 본 파일의 수정 시각이 곧 "마지막으로 열리거나 저장된 때"다.
+   * 아직 저장된 적이 없는 방은 파일이 없으므로 아무 일도 하지 않는다.
+   */
+  async touch(roomId: string): Promise<void> {
+    const now = new Date();
+    try {
+      await fs.utimes(this.roomFile(roomId), now, now);
+    } catch (err) {
+      if (!isNotFound(err)) this.log(`touch failed room=${roomId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * 마지막으로 열리거나 저장된 지 ttlMs가 넘은 방을 백업과 함께 지운다.
+   * inUse가 true를 돌려주는 방(지금 메모리에 올라와 있는 방)은 건너뛴다. 지운 방의 id를 돌려준다.
+   */
+  async removeExpired(ttlMs: number, inUse: (roomId: string) => boolean, now = Date.now()): Promise<string[]> {
+    if (!(ttlMs > 0)) return [];
+    const removed: string[] = [];
+    for (const name of await fs.readdir(this.dataDir)) {
+      if (!name.endsWith('.bin')) continue;
+      const roomId = name.slice(0, -'.bin'.length);
+      if (!ROOM_ID_PATTERN.test(roomId)) continue;
+      const file = path.join(this.dataDir, name);
+      let mtime: number;
+      try {
+        mtime = (await fs.stat(file)).mtimeMs;
+      } catch {
+        continue;
+      }
+      if (now - mtime < ttlMs) continue;
+      // 확인과 지우기 시작 사이에 다른 일이 끼어들지 않도록 같은 틱에서 표시해 둔다
+      if (inUse(roomId) || this.removing.has(roomId)) continue;
+      const work = (async () => {
+        await fs.rm(file, { force: true });
+        await fs.rm(path.join(this.dataDir, 'backups', roomId), { recursive: true, force: true });
+      })();
+      this.removing.set(roomId, work.catch(() => {}));
+      try {
+        await work;
+        this.lastBackupAt.delete(roomId);
+        removed.push(roomId);
+        this.log(`expired room=${roomId} idle=${Math.floor((now - mtime) / 86_400_000)}d`);
+      } catch (err) {
+        this.log(`expire failed room=${roomId}: ${(err as Error).message}`);
+      } finally {
+        this.removing.delete(roomId);
+      }
+    }
+    return removed;
   }
 
   /** 시간순(오래된 것부터)으로 정렬된 백업 파일 이름 */

@@ -34,6 +34,10 @@ export interface ErdServerOptions {
   maxConnectionsPerIp?: number;
   /** 같은 IP가 새 방을 다시 만들 수 있기까지의 시간. 기본 0(제한 없음) */
   roomCreateIntervalMs?: number;
+  /** 이 시간 동안 아무도 열지 않은 방을 지운다. 기본 0(지우지 않음) */
+  roomTtlMs?: number;
+  /** 지울 방을 찾는 주기. 기본 6시간 */
+  roomSweepIntervalMs?: number;
   /** 로그를 받을 함수. 기본은 console.log */
   log?: Logger;
 }
@@ -123,6 +127,14 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
   let server: http.Server | null = null;
   let wss: WebSocketServer | null = null;
 
+  const roomTtlMs = opts.roomTtlMs ?? 0;
+  const roomSweepIntervalMs = opts.roomSweepIntervalMs ?? 6 * 60 * 60 * 1000;
+  let sweepTimer: NodeJS.Timeout | null = null;
+  let firstSweepTimer: NodeJS.Timeout | null = null;
+  const sweepRooms = () => {
+    hub.removeExpiredRooms(roomTtlMs).catch((err: unknown) => log(`room sweep failed: ${(err as Error).message}`));
+  };
+
   return {
     async start() {
       if (server) throw new Error('already started');
@@ -172,6 +184,13 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       wss = wsServer;
       startedAt = Date.now();
       hub.start();
+      if (roomTtlMs > 0) {
+        // 켜진 직후에 한 번 보고, 그 뒤로는 주기마다 본다
+        firstSweepTimer = setTimeout(sweepRooms, Math.min(60_000, roomSweepIntervalMs));
+        firstSweepTimer.unref();
+        sweepTimer = setInterval(sweepRooms, roomSweepIntervalMs);
+        sweepTimer.unref();
+      }
       return { port: (httpServer.address() as AddressInfo).port };
     },
 
@@ -181,6 +200,10 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
       if (!httpServer || !wsServer) return;
       server = null;
       wss = null;
+      if (firstSweepTimer) clearTimeout(firstSweepTimer);
+      if (sweepTimer) clearInterval(sweepTimer);
+      firstSweepTimer = null;
+      sweepTimer = null;
 
       // 새 접속을 막고, 방을 모두 저장한 다음 남은 소켓을 정리한다
       const closed = new Promise<void>((resolve) => httpServer.close(() => resolve()));

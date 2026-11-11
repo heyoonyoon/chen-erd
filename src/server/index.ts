@@ -1,8 +1,9 @@
 /**
  * 서버 진입점. HTTP(정적 파일, API)와 웹소켓(/ws/<roomId>)을 한 포트에서 제공한다. [담당: server 에이전트]
  * 환경변수: PORT(기본 8787), HOST(기본 0.0.0.0), DATA_DIR(기본 ./data), STATIC_DIR(기본 dist/client),
- * MAX_CLIENTS_PER_ROOM(기본 15), MAX_CONNECTIONS_PER_IP(기본 5), ROOM_CREATE_INTERVAL_MS(기본 60000).
- * 뒤의 둘은 0이면 제한하지 않는다.
+ * MAX_CLIENTS_PER_ROOM(기본 15), MAX_CONNECTIONS_PER_IP(기본 5), ROOM_CREATE_INTERVAL_MS(기본 60000),
+ * ROOM_TTL_DAYS(기본 30, 이 날수 동안 아무도 열지 않은 방을 지운다).
+ * 뒤의 셋은 0이면 제한하지 않는다.
  */
 import path from 'node:path';
 import { createErdServer } from './server';
@@ -37,6 +38,7 @@ const server = createErdServer({
   maxClientsPerRoom: limitFromEnv('MAX_CLIENTS_PER_ROOM', 15) || undefined,
   maxConnectionsPerIp: limitFromEnv('MAX_CONNECTIONS_PER_IP', 5),
   roomCreateIntervalMs: limitFromEnv('ROOM_CREATE_INTERVAL_MS', 60_000),
+  roomTtlMs: limitFromEnv('ROOM_TTL_DAYS', 30) * 24 * 60 * 60 * 1000,
   log,
 });
 
