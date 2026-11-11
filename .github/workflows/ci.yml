@@ -44,7 +44,7 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # 브라우저는 실행 장비에 깔려 있는 Chrome을 쓴다(playwright.config.ts의 channel). 내려받는 단계가 몇 분씩 걸려서 뺐다
       # 서버를 띄우고 브라우저 두 개로 동시 편집과 커서 공유를 확인한다
       - run: npm run e2e
 

@@ -13,8 +13,8 @@ export default defineConfig({
     viewport: { width: 1400, height: 900 },
     // 화면 언어는 브라우저 언어를 따라간다. E2E는 한국어 문구를 확인하므로 실행 환경과 상관없이 한국어로 고정한다
     locale: 'ko-KR',
-    // 로컬에서는 설치된 Chrome을 쓰고, CI에서는 Playwright가 내려받은 Chromium을 쓴다
-    channel: process.env.CI ? undefined : 'chrome',
+    // 설치된 Chrome을 쓴다. GitHub의 실행 장비에도 Chrome이 깔려 있어서 브라우저를 따로 내려받지 않는다
+    channel: 'chrome',
     trace: 'retain-on-failure',
   },
   webServer: {
