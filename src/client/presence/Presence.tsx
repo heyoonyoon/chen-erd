@@ -23,8 +23,11 @@ import {
 } from './presenceMath';
 import './Presence.css';
 
-/** 커서 위치를 보내는 최소 간격(ms). 초당 30회 정도 */
-export const CURSOR_INTERVAL_MS = 33;
+/**
+ * 커서 위치를 보내는 최소 간격(ms). 초당 15회 정도.
+ * 받는 쪽이 80ms 동안 이어서 움직이므로 이 간격에서도 끊겨 보이지 않는다. 서버가 방의 모든 사람에게 다시 보내므로 줄일수록 부하가 준다.
+ */
+export const CURSOR_INTERVAL_MS = 66;
 
 /** ref 요소 위에서 움직이는 내 마우스 위치(월드 좌표)를 다른 접속자에게 보낸다. 벗어나면 null을 보낸다. 전송은 초당 30회 정도로 제한한다. */
 export function useBroadcastCursor(ref: RefObject<Element | null>): void {

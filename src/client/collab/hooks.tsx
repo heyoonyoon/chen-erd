@@ -107,6 +107,33 @@ export function useConnectionStatus(): ConnectionStatus {
   return status;
 }
 
+/** 서버가 접속을 받아 주지 않은 이유. 서버의 닫기 코드(src/server/limits.ts, sync.ts)와 맞춘다 */
+export type BlockedReason = 'connections' | 'room-rate' | 'room-full';
+
+const BLOCKED_BY_CODE: Record<number, BlockedReason> = { 4429: 'connections', 4430: 'room-rate', 4503: 'room-full' };
+
+/** 접속 제한에 걸려 서버가 연결을 닫았으면 그 이유. 다시 연결되면 null로 돌아간다 */
+export function useBlockedReason(): BlockedReason | null {
+  const room = useRoom();
+  const [reason, setReason] = useState<BlockedReason | null>(null);
+  useEffect(() => {
+    const onClose = (event: CloseEvent | null) => {
+      const blocked = event ? BLOCKED_BY_CODE[event.code] : undefined;
+      if (blocked) setReason(blocked);
+    };
+    const onStatus = (e: { status: ConnectionStatus }) => {
+      if (e.status === 'connected') setReason(null);
+    };
+    room.provider.on('connection-close', onClose);
+    room.provider.on('status', onStatus);
+    return () => {
+      room.provider.off('connection-close', onClose);
+      room.provider.off('status', onStatus);
+    };
+  }, [room]);
+  return reason;
+}
+
 /** 서버의 문서를 처음 한 번 다 받았는지 */
 export function useSynced(): boolean {
   const room = useRoom();

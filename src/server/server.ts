@@ -7,9 +7,10 @@ import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { ROOM_ID_PATTERN } from '../shared/types';
 import { createApp } from './http';
+import { CLOSE_ROOM_RATE_LIMIT, CLOSE_TOO_MANY_CONNECTIONS, ClientLimits, clientIp } from './limits';
 import { Persistence, type Logger } from './persistence';
 import { CLOSE_INVALID_ROOM, SyncHub } from './sync';
 
@@ -29,6 +30,10 @@ export interface ErdServerOptions {
   pingIntervalMs?: number;
   backupIntervalMs?: number;
   maxBackups?: number;
+  /** IP당 동시 연결 수. 기본 0(제한 없음) */
+  maxConnectionsPerIp?: number;
+  /** 같은 IP가 새 방을 다시 만들 수 있기까지의 시간. 기본 0(제한 없음) */
+  roomCreateIntervalMs?: number;
   /** 로그를 받을 함수. 기본은 console.log */
   log?: Logger;
 }
@@ -76,6 +81,37 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
     log,
   });
 
+  const limits = new ClientLimits({
+    maxConnectionsPerIp: opts.maxConnectionsPerIp,
+    roomCreateIntervalMs: opts.roomCreateIntervalMs,
+  });
+
+  /** 새 방이면 만드는 빈도를 확인한 뒤 방에 넣는다. 확인하는 동안 온 메시지는 모아 두었다가 넘긴다. */
+  async function admit(ws: WebSocket, roomId: string, ip: string): Promise<void> {
+    if (!limits.roomRateLimited) {
+      hub.handleConnection(ws, roomId);
+      return;
+    }
+    const early: Array<[RawData, boolean]> = [];
+    const onEarly = (data: RawData, isBinary: boolean) => void early.push([data, isBinary]);
+    ws.on('message', onEarly);
+    let isNew = false;
+    try {
+      isNew = await hub.isNewRoom(roomId);
+    } catch {
+      // 확인하지 못하면 제한 없이 넘기고, 읽기 오류는 방을 여는 쪽에서 처리한다
+    }
+    ws.off('message', onEarly);
+    if (ws.readyState !== WebSocket.OPEN) return;
+    if (isNew && !limits.tryCreateRoom(ip, roomId)) {
+      log(`room rate limited ip=${ip}`);
+      ws.close(CLOSE_ROOM_RATE_LIMIT, 'room creation rate limited');
+      return;
+    }
+    hub.handleConnection(ws, roomId);
+    for (const [data, isBinary] of early) ws.emit('message', data, isBinary);
+  }
+
   let startedAt = Date.now();
   const app = createApp({
     staticDir: opts.staticDir ?? defaultStaticDir(),
@@ -111,7 +147,16 @@ export function createErdServer(opts: ErdServerOptions = {}): ErdServer {
             ws.close(CLOSE_INVALID_ROOM, 'invalid room id');
             return;
           }
-          hub.handleConnection(ws, roomId);
+          const ip = clientIp(req);
+          if (!limits.acquire(ip)) {
+            log(`too many connections ip=${ip}`);
+            ws.on('error', () => {});
+            ws.close(CLOSE_TOO_MANY_CONNECTIONS, 'too many connections');
+            return;
+          }
+          ws.once('close', () => limits.release(ip));
+          ws.on('error', () => {});
+          void admit(ws, roomId, ip);
         });
       });
 

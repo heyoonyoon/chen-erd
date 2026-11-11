@@ -30,7 +30,7 @@ const MAX_BUFFERED_BYTES = 64 * 1024 * 1024;
 const MAX_QUEUED_MESSAGES = 1000;
 
 export interface SyncOptions {
-  /** 방당 최대 접속자. 기본 50 */
+  /** 방당 최대 접속자. 기본 15 */
   maxClientsPerRoom?: number;
   /** 변경 후 저장까지 기다리는 시간. 기본 1초 */
   saveDebounceMs?: number;
@@ -86,7 +86,7 @@ export class SyncHub {
     private readonly persistence: Persistence,
     opts: SyncOptions = {},
   ) {
-    this.maxClientsPerRoom = opts.maxClientsPerRoom ?? 50;
+    this.maxClientsPerRoom = opts.maxClientsPerRoom ?? 15;
     this.saveDebounceMs = opts.saveDebounceMs ?? 1000;
     this.saveMaxWaitMs = opts.saveMaxWaitMs ?? 5000;
     this.saveRetryMs = opts.saveRetryMs ?? 5000;
@@ -113,6 +113,12 @@ export class SyncHub {
     const clients = room?.conns.size ?? 0;
     const exists = clients > 0 || room?.dirty === true || (await this.persistence.exists(roomId));
     return { exists, clients };
+  }
+
+  /** 메모리에도 디스크에도 없는 방인지. roomId는 호출하는 쪽에서 검증한 값이어야 한다. */
+  async isNewRoom(roomId: string): Promise<boolean> {
+    if (this.rooms.has(roomId)) return false;
+    return !(await this.persistence.exists(roomId));
   }
 
   /** 핸드셰이크를 마친 웹소켓을 방에 넣는다. roomId는 검증을 통과한 값이어야 한다. */

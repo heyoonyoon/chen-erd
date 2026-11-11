@@ -255,4 +255,49 @@ describe('ERD 서버', () => {
     expect((await api('/api/health')).status).toBe(200);
     expect((await api('/r/abc')).status).toBe(404);
   });
+
+  it('방 하나에는 기본으로 15명까지 들어온다', async () => {
+    await boot();
+    const opened: WebSocket[] = [];
+    for (let i = 0; i < 15; i++) {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/room-cap`);
+      ws.on('error', () => {});
+      opened.push(ws);
+    }
+    await waitFor(async () => (await (await api('/api/health')).json()).connections === 15, '15명 접속');
+    expect((await rawClose('/ws/room-cap')).code).toBe(4503);
+    for (const ws of opened) ws.terminate();
+  });
+
+  it('한 주소의 동시 연결이 한도를 넘으면 4429로 닫는다', async () => {
+    await boot({ maxConnectionsPerIp: 2 });
+    const a = connect('room-limit');
+    const b = connect('room-limit');
+    await waitFor(() => a.provider.synced && b.provider.synced, '두 접속자 동기화');
+
+    const third = await rawClose('/ws/room-limit');
+    expect(third.opened).toBe(true);
+    expect(third.code).toBe(4429);
+
+    // 하나가 나가면 자리가 난다
+    a.provider.destroy();
+    await waitFor(async () => (await (await api('/api/health')).json()).connections === 1, '연결 하나 정리');
+    const c = connect('room-limit');
+    await waitFor(() => c.provider.synced, '빈 자리로 접속');
+  });
+
+  it('한 주소가 새 방을 연달아 만들면 4430으로 닫고, 있는 방에는 들어갈 수 있다', async () => {
+    await boot({ roomCreateIntervalMs: 60_000 });
+    const a = connect('room-first');
+    await waitFor(() => a.provider.synced, '첫 방 동기화');
+    a.doc.getMap('nodes').set('n1', 'x');
+
+    const second = await rawClose('/ws/room-second');
+    expect(second.opened).toBe(true);
+    expect(second.code).toBe(4430);
+
+    // 이미 열려 있는 방과 방금 만든 방에 다시 들어오는 것은 막지 않는다
+    const b = connect('room-first');
+    await waitFor(() => b.provider.synced && b.doc.getMap('nodes').get('n1') === 'x', '있는 방에 접속');
+  });
 });

@@ -20,6 +20,13 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: process.env.E2E_DATA_DIR ?? '.e2e-data' },
+    env: {
+      PORT: String(PORT),
+      HOST: '127.0.0.1',
+      DATA_DIR: process.env.E2E_DATA_DIR ?? '.e2e-data',
+      // 테스트는 한 주소에서 방을 여러 개 만들고 여러 번 접속하므로 접속 제한을 끈다
+      MAX_CONNECTIONS_PER_IP: '0',
+      ROOM_CREATE_INTERVAL_MS: '0',
+    },
   },
 });

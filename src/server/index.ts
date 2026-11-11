@@ -1,6 +1,8 @@
 /**
  * 서버 진입점. HTTP(정적 파일, API)와 웹소켓(/ws/<roomId>)을 한 포트에서 제공한다. [담당: server 에이전트]
- * 환경변수: PORT(기본 8787), HOST(기본 0.0.0.0), DATA_DIR(기본 ./data), STATIC_DIR(기본 dist/client)
+ * 환경변수: PORT(기본 8787), HOST(기본 0.0.0.0), DATA_DIR(기본 ./data), STATIC_DIR(기본 dist/client),
+ * MAX_CLIENTS_PER_ROOM(기본 15), MAX_CONNECTIONS_PER_IP(기본 5), ROOM_CREATE_INTERVAL_MS(기본 60000).
+ * 뒤의 둘은 0이면 제한하지 않는다.
  */
 import path from 'node:path';
 import { createErdServer } from './server';
@@ -15,7 +17,28 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 const host = process.env.HOST || '0.0.0.0';
 const dataDir = process.env.DATA_DIR || './data';
 
-const server = createErdServer({ port, host, dataDir, staticDir: process.env.STATIC_DIR || undefined, log });
+/** 0 이상의 정수 환경변수. 비어 있으면 기본값을 쓴다 */
+function limitFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    console.error(`[erd] ${name} 값이 올바르지 않습니다: ${raw}`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const server = createErdServer({
+  port,
+  host,
+  dataDir,
+  staticDir: process.env.STATIC_DIR || undefined,
+  maxClientsPerRoom: limitFromEnv('MAX_CLIENTS_PER_ROOM', 15) || undefined,
+  maxConnectionsPerIp: limitFromEnv('MAX_CONNECTIONS_PER_IP', 5),
+  roomCreateIntervalMs: limitFromEnv('ROOM_CREATE_INTERVAL_MS', 60_000),
+  log,
+});
 
 let stopping = false;
 async function shutdown(reason: string, code: number): Promise<void> {

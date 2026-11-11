@@ -4,13 +4,14 @@
  */
 import { useEffect, useState } from 'react';
 import { pruneSelection } from '../actions';
-import { RoomContext, useRoom, useTitle } from '../collab/hooks';
+import { RoomContext, useBlockedReason, useRoom, useTitle, type BlockedReason } from '../collab/hooks';
 import { createRoom, type Room } from '../collab/room';
 import { Canvas } from '../canvas/Canvas';
 import { Minimap, ZoomControls } from '../canvas/ViewportControls';
 import { useShortcuts } from '../canvas/shortcuts';
 import { getIdentity, rememberRoom } from '../identity';
 import { NicknameDialog } from '../presence/NicknameDialog';
+import { navigate } from '../router';
 import { useUi } from '../state/ui';
 import { ContextMenu } from '../ui/ContextMenu';
 import { HelpOverlay } from '../ui/HelpOverlay';
@@ -73,6 +74,46 @@ function RoomLayout() {
       <ContextMenu />
       {panels.help && <HelpOverlay />}
       <NicknameDialog />
+      <BlockedNotice />
+    </div>
+  );
+}
+
+const BLOCKED_TEXT: Record<BlockedReason, { title: string; body: string }> = {
+  connections: {
+    title: '동시에 열 수 있는 창을 넘었습니다',
+    body: '같은 네트워크에서 열어 둔 다이어그램 창이 너무 많습니다. 쓰지 않는 창을 닫고 다시 시도해 주세요.',
+  },
+  'room-full': {
+    title: '방이 가득 찼습니다',
+    body: '한 다이어그램에는 15명까지 함께 들어올 수 있습니다. 자리가 나면 자동으로 연결됩니다.',
+  },
+  'room-rate': {
+    title: '새 다이어그램은 1분에 하나만 만들 수 있습니다',
+    body: '잠시 뒤에 다시 시도해 주세요. 이미 만든 다이어그램에는 바로 들어갈 수 있습니다.',
+  },
+};
+
+/** 서버의 접속 제한에 걸렸을 때 이유를 알리는 창 */
+function BlockedNotice() {
+  const room = useRoom();
+  const reason = useBlockedReason();
+  if (!reason) return null;
+  const text = BLOCKED_TEXT[reason];
+  return (
+    <div className="room-blocked-overlay" data-testid="blocked-notice" data-reason={reason}>
+      <div className="panel room-blocked" role="alertdialog" aria-modal="true" aria-label={text.title}>
+        <p className="room-blocked-title">{text.title}</p>
+        <p className="room-blocked-body">{text.body}</p>
+        <div className="room-blocked-actions">
+          <button type="button" className="btn" onClick={() => navigate('/')}>
+            처음 화면으로
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => room.provider.connect()}>
+            다시 시도
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
