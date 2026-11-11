@@ -9,6 +9,7 @@ import { APP_NAME, formatDateTime, formatNumber, useT } from '../i18n';
 import { LanguageSelect } from '../i18n/LanguageSelect';
 import { forgetRoom, getRecentRooms, type RecentRoom } from '../identity';
 import { navigate, newRoomId, roomPath } from '../router';
+import { LogoMark } from '../ui/LogoMark';
 import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
 import { HomeAi } from './HomeAi';
@@ -22,15 +23,6 @@ import './Home.css';
 /** 주소로 갈 수 없는 id가 섞여 있으면 뺀다 */
 function loadRecent(): RecentRoom[] {
   return getRecentRooms().filter((r) => ROOM_ID_PATTERN.test(r.id));
-}
-
-/** 마름모 하나로 된 표식. 한 가지 색의 선으로만 그린다 */
-function LogoMark() {
-  return (
-    <svg className="home-logo" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M10 2.5 18 10l-8 7.5L2 10Z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 /** GitHub 저장소로 가는 링크. 별 수를 알면 숫자를, 모르면 이름을 로고 옆에 적는다 */
@@ -131,7 +123,7 @@ export function Home() {
         <div className="home-nav-inner">
           <div className="home-nav-start">
             <div className="home-brand">
-              <LogoMark />
+              <LogoMark className="home-logo" size={22} />
               <span className="home-brand-name">{APP_NAME}</span>
             </div>
             <GithubLink />

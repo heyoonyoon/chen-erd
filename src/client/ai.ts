@@ -1,12 +1,9 @@
 /**
- * AI가 다이어그램을 읽고 쓰는 세 가지 길에서 화면이 보여 주는 명령과 주소.
+ * AI가 다이어그램을 읽고 쓰는 두 가지 길(CLI, MCP)에서 화면이 함께 쓰는 값.
  * 방의 상단 바와 첫 화면이 같은 값을 쓴다. 명령과 도구 이름은 번역하지 않는다.
  */
 
-/** Claude Code에 로컬 MCP 서버로 등록하는 명령 */
-export const LOCAL_MCP_COMMAND = 'claude mcp add modelll -- npx -y modelll mcp';
-
-/** 원격 MCP 서버 주소. 지금 열려 있는 사이트를 기준으로 만들어 로컬에서 띄운 서버에서도 맞는 값이 나온다 */
+/** MCP로 연결할 때 클라이언트에 추가하는 원격 MCP 서버 주소. 지금 열려 있는 사이트를 기준으로 만들어 로컬에서 띄운 서버에서도 맞는 값이 나온다 */
 export function remoteMcpUrl(): string {
   return `${location.origin}/mcp`;
 }

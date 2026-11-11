@@ -280,13 +280,23 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     );
   });
 
-  it('AI 구역: 세 가지 방법마다 복사할 글이 있고 누르면 클립보드에 넣고 알린다', async () => {
+  it('AI 구역: CLI와 MCP 두 가지 방법마다 복사할 글이 있고 누르면 클립보드에 넣고 알린다', async () => {
     const writeText = vi.fn(async (_t: string) => undefined);
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     render(<Home />);
     const toasts = () => useToasts.getState().items.map((t) => [t.message, t.kind]);
     expect(screen.getByTestId('home-way-cli').textContent).toContain('Claude Code, Cursor, Codex');
-    expect(screen.getByTestId('home-way-remote').textContent).toContain('claude.ai나 ChatGPT의 커넥터 설정');
+    // 두 방법을 CLI와 MCP라는 이름으로 나란히 부른다. 로컬 MCP 서버를 추가하는 카드는 없다
+    expect(screen.getByTestId('home-ai').querySelector('h3')!.textContent).toBe('AI를 연결하는 두 가지 방법');
+    const ways = [...document.querySelectorAll('.home-way')];
+    expect(ways.map((el) => el.getAttribute('data-testid'))).toEqual(['home-way-cli', 'home-way-mcp']);
+    expect(ways.map((el) => el.querySelector('h4')!.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기']);
+    expect(screen.getByTestId('home-way-cli').textContent).toContain('npx -y modelll 명령으로');
+    expect(screen.getByTestId('home-way-mcp').textContent).toContain('claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구');
+    expect(screen.getByTestId('home-way-mcp').textContent).toContain('원격 MCP 서버나 커넥터로 추가합니다');
+    expect(screen.getByTestId('home-ai').textContent).not.toContain('터미널');
+    expect(screen.getByTestId('home-ai').textContent).not.toContain('mcpServers');
+    expect(screen.getByTestId('home-ai').textContent).not.toContain('modelll mcp');
 
     const cli = '`npx -y modelll syntax`로 텍스트 형식을 읽고 도서관 대출 관리 ERD를 `npx -y modelll new`로 만들어 방 주소를 알려 주세요.';
     expect(screen.getByTestId('home-cli-text').textContent).toBe(cli);
@@ -294,14 +304,10 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사했습니다', 'info']));
     expect(writeText).toHaveBeenLastCalledWith(cli);
 
-    expect(screen.getByTestId('home-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
-    fireEvent.click(screen.getByTestId('home-local-copy'));
-    await waitFor(() => expect(toasts()).toContainEqual(['명령을 복사했습니다', 'info']));
-    expect(writeText).toHaveBeenLastCalledWith('claude mcp add modelll -- npx -y modelll mcp');
-
     // 원격 MCP 주소는 지금 열려 있는 사이트를 기준으로 만든다
-    expect(screen.getByTestId('home-remote-text').textContent).toBe(`${location.origin}/mcp`);
-    fireEvent.click(screen.getByTestId('home-remote-copy'));
+    expect(screen.getByTestId('home-mcp-text').textContent).toBe(`${location.origin}/mcp`);
+    expect(screen.getByTestId('home-mcp-copy').getAttribute('aria-label')).toBe('주소 복사');
+    fireEvent.click(screen.getByTestId('home-mcp-copy'));
     await waitFor(() => expect(toasts()).toContainEqual(['주소를 복사했습니다', 'info']));
     expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/mcp`);
     // 알림은 첫 화면이 직접 그린다(방 화면에서는 상단 바가 그린다)

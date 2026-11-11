@@ -32,7 +32,7 @@
         justify-content: center;
         gap: 22px;
       }
-      .brand svg { width: 84px; height: 84px; flex: none; }
+      .brand svg { width: 92px; height: 92px; flex: none; }
       .brand span { font-size: 112px; font-weight: 700; letter-spacing: -0.035em; line-height: 1; }
       .tagline {
         position: absolute;
@@ -58,9 +58,8 @@
   </head>
   <body>
     <div class="brand">
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M10 2.5 18 10l-8 7.5L2 10Z" fill="none" stroke="#171717" stroke-width="1.75" stroke-linejoin="round" />
-      </svg>
+      <!-- 로고 표식. 도형은 render.mjs가 src/shared/logoMark.ts의 값으로 채운다 -->
+      <svg viewBox="0 0 44 44" aria-hidden="true"></svg>
       <span>modelll</span>
     </div>
     <p class="tagline">Draw ER diagrams together</p>

@@ -1,6 +1,5 @@
 /**
- * modelll CLI 진입점. 방의 다이어그램을 텍스트로 내려받고(pull) 올린다(push). 'modelll mcp'는 같은 일을 MCP 도구로 내놓는다.
- * 빌드하면 dist/cli/modelll.js 한 파일이 된다.
+ * modelll CLI 진입점. 방의 다이어그램을 텍스트로 내려받고(pull) 올린다(push). 빌드하면 dist/cli/modelll.js 한 파일이 된다.
  * 환경변수: MODELLL_SERVER(기본 https://modelll.app), MODELLL_LANG(검증 결과의 언어. ko 또는 en).
  */
 import { promises as fs } from 'node:fs';

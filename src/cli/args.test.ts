@@ -56,6 +56,8 @@ describe('parseCliArgs', () => {
 
   it('모르는 명령과 옵션을 알린다', () => {
     expect(usageError(['pulll', 'abc'])).toContain('unknown command "pulll"');
+    // MCP 서버는 CLI에 없다(서버의 /mcp를 쓴다)
+    expect(usageError(['mcp'])).toContain('unknown command "mcp"');
     expect(usageError(['pull', 'abc', '--force'])).toContain('--force');
   });
 

@@ -234,6 +234,10 @@ describe('TopBar 버튼', () => {
   it('홈 버튼은 처음 화면으로 간다', () => {
     const { room } = makeRoom();
     renderBar(room);
+    // 첫 화면과 같은 로고 표식을 제품 이름 앞에 둔다
+    const mark = screen.getByTestId('home-button').querySelector('[data-testid="logo-mark"]')!;
+    expect(mark.getAttribute('stroke')).toBe('#2F6BFF');
+    expect([...mark.children].map((el) => el.tagName.toLowerCase())).toEqual(['path', 'rect', 'rect', 'ellipse']);
     fireEvent.click(screen.getByTestId('home-button'));
     expect(location.pathname).toBe('/');
   });
@@ -429,7 +433,7 @@ describe('TopBar AI로 편집', () => {
   };
   const ROOM_URL = () => `${location.origin}/r/testroom`;
 
-  it('공유 버튼 앞에 있고, 누르면 세 가지 방법을 보여 주며 다시 누르면 닫힌다', () => {
+  it('공유 버튼 앞에 있고, 누르면 CLI와 MCP 두 가지 방법을 보여 주며 다시 누르면 닫힌다', () => {
     const { room } = makeRoom();
     renderBar(room);
     const btn = screen.getByTestId('ai-button');
@@ -446,12 +450,18 @@ describe('TopBar AI로 편집', () => {
     expect(btn.getAttribute('aria-expanded')).toBe('true');
     expect(pop.getAttribute('role')).toBe('dialog');
     expect(document.getElementById(pop.getAttribute('aria-labelledby')!)!.textContent).toBe('AI로 이 다이어그램 편집하기');
-    expect(screen.getByTestId('ai-way-cli').textContent).toContain('터미널을 쓰는 AI에게 시키기');
-    expect(screen.getByTestId('ai-way-local').textContent).toContain('Claude Code에 MCP 서버로 등록하기');
-    expect(screen.getByTestId('ai-way-remote').textContent).toContain('claude.ai나 ChatGPT의 커넥터 설정');
-    expect(screen.getByTestId('ai-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
+    // 두 방법을 CLI와 MCP라는 이름으로 나란히 부른다. 로컬 MCP 서버를 추가하는 방법은 없다
+    expect([...pop.querySelectorAll('.topbar-ai-way')].map((el) => el.getAttribute('data-testid'))).toEqual(['ai-way-cli', 'ai-way-mcp']);
+    expect([...pop.querySelectorAll('.topbar-ai-name')].map((el) => el.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기']);
+    expect(screen.getByTestId('ai-way-cli').textContent).toContain('Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI');
+    expect(screen.getByTestId('ai-way-cli').textContent).toContain('npx -y modelll 명령으로');
+    expect(screen.getByTestId('ai-way-mcp').textContent).toContain('claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구');
+    expect(screen.getByTestId('ai-way-mcp').textContent).toContain('원격 MCP 서버나 커넥터로 추가합니다');
+    expect(pop.textContent).not.toContain('터미널');
+    expect(pop.textContent).not.toContain('mcpServers');
+    expect(pop.textContent).not.toContain('modelll mcp');
     // 원격 MCP 주소는 지금 열려 있는 사이트를 기준으로 만든다
-    expect(screen.getByTestId('ai-remote-text').textContent).toBe(`${location.origin}/mcp`);
+    expect(screen.getByTestId('ai-mcp-text').textContent).toBe(`${location.origin}/mcp`);
     // 열리면 가장 많이 쓰는 지시문 복사 버튼이 포커스를 받는다
     expect(document.activeElement).toBe(screen.getByTestId('ai-prompt-copy'));
 
@@ -487,17 +497,14 @@ describe('TopBar AI로 편집', () => {
     expect(writeText).toHaveBeenLastCalledWith(prompt);
     expect(prompt).toContain(ROOM_URL());
 
-    fireEvent.click(screen.getByTestId('ai-local-copy'));
-    await waitFor(() => expect(toasts()).toContainEqual(['명령을 복사했습니다', 'info']));
-    expect(writeText).toHaveBeenLastCalledWith('claude mcp add modelll -- npx -y modelll mcp');
-
-    fireEvent.click(screen.getByTestId('ai-remote-copy'));
+    fireEvent.click(screen.getByTestId('ai-mcp-copy'));
     await waitFor(() => expect(toasts()).toContainEqual(['주소를 복사했습니다', 'info']));
     expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/mcp`);
     // 복사한 뒤에도 다른 것을 이어서 복사할 수 있게 열어 둔다
     expect(screen.queryByTestId('ai-popover')).not.toBeNull();
-    expect(screen.getByTestId('ai-local-copy').getAttribute('aria-label')).toBe('명령 복사');
-    expect(screen.getByTestId('ai-remote-copy').getAttribute('aria-label')).toBe('주소 복사');
+    expect(screen.getByTestId('ai-mcp-copy').getAttribute('aria-label')).toBe('주소 복사');
+    // 복사할 것은 지시문과 주소 둘뿐이다
+    expect(screen.getByTestId('ai-popover').querySelectorAll('button')).toHaveLength(2);
   });
 
   it('클립보드를 쓸 수 없으면 error 알림으로 알리고 글은 직접 고를 수 있게 남겨 둔다', async () => {
@@ -512,7 +519,7 @@ describe('TopBar AI로 편집', () => {
     // 복사가 거부된 경우도 같다
     useToasts.getState().clear();
     vi.stubGlobal('navigator', { clipboard: { writeText: async () => Promise.reject(new Error('denied')) } });
-    fireEvent.click(screen.getByTestId('ai-remote-copy'));
+    fireEvent.click(screen.getByTestId('ai-mcp-copy'));
     await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사하지 못했습니다', 'error']));
   });
 
@@ -538,9 +545,9 @@ describe('TopBar AI로 편집', () => {
     renderBar(room);
     fireEvent.click(screen.getByTestId('ai-button'));
     // 팝오버 안에서 옮겨 다니는 동안에는 열려 있다
-    fireEvent.blur(screen.getByTestId('ai-prompt-copy'), { relatedTarget: screen.getByTestId('ai-local-copy') });
+    fireEvent.blur(screen.getByTestId('ai-prompt-copy'), { relatedTarget: screen.getByTestId('ai-mcp-copy') });
     expect(screen.queryByTestId('ai-popover')).not.toBeNull();
-    fireEvent.blur(screen.getByTestId('ai-remote-copy'), { relatedTarget: screen.getByTestId('share-button') });
+    fireEvent.blur(screen.getByTestId('ai-mcp-copy'), { relatedTarget: screen.getByTestId('share-button') });
     expect(screen.queryByTestId('ai-popover')).toBeNull();
   });
 
@@ -552,7 +559,7 @@ describe('TopBar AI로 편집', () => {
     window.addEventListener('keyup', spy);
     fireEvent.keyDown(screen.getByTestId('ai-button'), { key: 'e', code: 'KeyE' });
     fireEvent.click(screen.getByTestId('ai-button'));
-    for (const id of ['ai-prompt-copy', 'ai-prompt-text', 'ai-local-copy', 'ai-remote-copy']) {
+    for (const id of ['ai-prompt-copy', 'ai-prompt-text', 'ai-mcp-copy']) {
       fireEvent.keyDown(screen.getByTestId(id), { key: 'e', code: 'KeyE' });
       fireEvent.keyUp(screen.getByTestId(id), { key: 'e', code: 'KeyE' });
       fireEvent.keyDown(screen.getByTestId(id), { key: 'Backspace', code: 'Backspace' });
@@ -580,7 +587,13 @@ describe('TopBar AI로 편집', () => {
         'What to change: ',
       ].join('\n');
       expect(screen.getByTestId('ai-prompt-text').textContent).toBe(prompt);
-      expect(screen.getByTestId('ai-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
+      expect([...screen.getByTestId('ai-popover').querySelectorAll('.topbar-ai-name')].map((el) => el.textContent)).toEqual([
+        'Use the CLI',
+        'Connect over MCP',
+      ]);
+      expect(screen.getByTestId('ai-way-cli').textContent).toContain('edits the diagram with npx -y modelll commands');
+      expect(screen.getByTestId('ai-way-mcp').textContent).toContain('Add this URL as a remote MCP server or connector');
+      expect(screen.getByTestId('ai-mcp-text').textContent).toBe(`${location.origin}/mcp`);
       expect(screen.getByTestId('ai-popover').textContent).not.toMatch(/[ㄱ-ㆎ가-힣]/);
       fireEvent.click(screen.getByTestId('ai-prompt-copy'));
       await waitFor(() =>

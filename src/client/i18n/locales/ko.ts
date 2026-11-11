@@ -103,18 +103,15 @@ export const ko = {
   // ───────────── AI로 편집(방의 상단 바와 첫 화면이 함께 쓴다). 명령과 도구 이름은 번역하지 않는다 ─────────────
   'ai.title': 'AI로 이 다이어그램 편집하기',
   'ai.intro': 'AI가 다이어그램을 글로 읽고 고치면 이 방을 열어 둔 모든 사람의 화면에 바로 반영됩니다.',
-  'ai.cli.title': '터미널을 쓰는 AI에게 시키기',
-  'ai.cli.descRoom': 'Claude Code, Cursor, Codex에 이 지시문을 붙여 넣고 끝에 바꿀 내용을 적습니다.',
+  'ai.cli.title': 'CLI로 사용하기',
+  'ai.cli.descRoom': 'Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI에 이 지시문을 붙여 넣고 끝에 바꿀 내용을 적습니다. AI가 npx -y modelll 명령으로 다이어그램을 받아 고칩니다.',
   'ai.cli.descHome': 'Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI에 이 지시문을 붙여 넣으면 npx -y modelll 명령으로 새 다이어그램을 만들어 방 주소를 알려 줍니다.',
   'ai.cli.promptRoom': '이 modelll ER 다이어그램을 고쳐 주세요. 방 주소는 {url} 입니다.\n먼저 `npx -y modelll syntax`를 실행해 텍스트 형식을 읽어 주세요.\n그다음 `npx -y modelll pull {url} -o model.mdl`로 현재 다이어그램을 받아 파일을 고치고, `npx -y modelll push {url} model.mdl`로 방에 반영해 주세요.\n바꿀 내용: ',
   'ai.cli.promptHome': '`npx -y modelll syntax`로 텍스트 형식을 읽고 도서관 대출 관리 ERD를 `npx -y modelll new`로 만들어 방 주소를 알려 주세요.',
   'ai.cli.copy': '지시문 복사',
-  'ai.local.title': 'Claude Code에 MCP 서버로 등록하기',
-  'ai.local.desc': "터미널에서 이 명령을 한 번 실행해 두면 그 뒤로는 '쇼핑몰 주문 ERD를 그려 주세요'처럼 말하는 것만으로 다이어그램을 만들고 고칩니다.",
-  'ai.local.copy': '명령 복사',
-  'ai.remote.title': 'claude.ai나 ChatGPT에 연결하기',
-  'ai.remote.desc': '터미널 없이 쓰려면 claude.ai나 ChatGPT의 커넥터 설정에 이 주소를 추가합니다. 그러면 대화하면서 다이어그램을 만들고 고칠 수 있습니다.',
-  'ai.remote.copy': '주소 복사',
+  'ai.mcp.title': 'MCP로 연결하기',
+  'ai.mcp.desc': 'claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구에서 이 주소를 원격 MCP 서버나 커넥터로 추가합니다. 설치할 것이 없고, 추가한 뒤에는 대화하면서 다이어그램을 만들고 고칩니다.',
+  'ai.mcp.copy': '주소 복사',
 
   // ───────────── 알림 ─────────────
   'toast.pngSaved': 'PNG를 저장했습니다',
@@ -133,7 +130,6 @@ export const ko = {
   'toast.linkCopyFailed': '복사하지 못했습니다. 링크를 직접 선택해 복사해 주세요',
   'toast.autosave': '변경 내용은 자동으로 저장됩니다',
   'toast.promptCopied': '지시문을 복사했습니다. AI에게 붙여 넣고 바꿀 내용을 이어서 적어 주세요',
-  'toast.commandCopied': '명령을 복사했습니다',
   'toast.urlCopied': '주소를 복사했습니다',
 
   // ───────────── 도구 팔레트 ─────────────
@@ -461,7 +457,7 @@ export const ko = {
   'home.ai.assistant': 'AI 어시스턴트',
   'home.ai.request': '수강 관리 ERD를 그려 주세요. 학생은 여러 과목을 수강하고 수강마다 성적이 있습니다.',
   'home.ai.diagramLabel': '학생과 과목이 수강 관계로 이어진 예시 ER 다이어그램',
-  'home.ai.ways': 'AI를 연결하는 세 가지 방법',
+  'home.ai.ways': 'AI를 연결하는 두 가지 방법',
   'home.features.title': '주요 기능',
   'home.features.sub': '여러 사람이 동시에 그리고 표기법에 어긋난 부분을 확인한 뒤 문서에 넣을 그림으로 내보냅니다.',
   'home.feature.collab.title': '실시간 공동 편집',

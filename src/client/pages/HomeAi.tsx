@@ -1,11 +1,11 @@
 /**
  * 첫 화면의 AI 구역. AI에게 한 요청이 글로 쓴 모델을 거쳐 다이어그램이 되는 예시 그림과,
- * AI를 연결하는 세 가지 방법(터미널을 쓰는 AI, 로컬 MCP 서버, 원격 MCP 서버)을 복사할 수 있는 카드로 보여 준다.
+ * AI를 연결하는 두 가지 방법(CLI, MCP)을 복사할 수 있는 카드로 보여 준다. 어느 방법도 특정 AI 제품에 묶이지 않게 적는다.
  */
 import { useId, useState, type CSSProperties } from 'react';
 import { computeEdgeGeometry, diagramBounds, siblingInfo } from '../../shared/geometry';
 import type { ErdEdge, ErdNode } from '../../shared/types';
-import { LOCAL_MCP_COMMAND, copyText, remoteMcpUrl } from '../ai';
+import { copyText, remoteMcpUrl } from '../ai';
 import { EdgeShape } from '../canvas/EdgeShape';
 import { NodeShape } from '../canvas/NodeShape';
 import { useT, type MessageKey, type TFunction } from '../i18n';
@@ -223,15 +223,10 @@ export function HomeAi() {
           <p className="home-way-body">{t('ai.cli.descHome')}</p>
           <Snippet text={t('ai.cli.promptHome')} copyLabel={t('ai.cli.copy')} doneKey="toast.clipboardCopied" testId="home-cli" />
         </Reveal>
-        <Reveal className="home-way" delay={80} data-testid="home-way-local">
-          <h4 className="home-way-title">{t('ai.local.title')}</h4>
-          <p className="home-way-body">{t('ai.local.desc')}</p>
-          <Snippet text={LOCAL_MCP_COMMAND} copyLabel={t('ai.local.copy')} doneKey="toast.commandCopied" testId="home-local" />
-        </Reveal>
-        <Reveal className="home-way" delay={160} data-testid="home-way-remote">
-          <h4 className="home-way-title">{t('ai.remote.title')}</h4>
-          <p className="home-way-body">{t('ai.remote.desc')}</p>
-          <Snippet text={remoteMcpUrl()} copyLabel={t('ai.remote.copy')} doneKey="toast.urlCopied" testId="home-remote" />
+        <Reveal className="home-way" delay={80} data-testid="home-way-mcp">
+          <h4 className="home-way-title">{t('ai.mcp.title')}</h4>
+          <p className="home-way-body">{t('ai.mcp.desc')}</p>
+          <Snippet text={remoteMcpUrl()} copyLabel={t('ai.mcp.copy')} doneKey="toast.urlCopied" testId="home-mcp" />
         </Reveal>
       </div>
     </section>

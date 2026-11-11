@@ -4,7 +4,7 @@
 import { parseArgs } from 'node:util';
 import { CliError } from './errors';
 
-export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'mcp' | 'help' | 'version';
+export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'help' | 'version';
 
 export interface CliOptions {
   /** --server: 방 id만 적었을 때와 new에서 쓸 서버 */
@@ -44,7 +44,6 @@ export const COMMANDS: Record<Exclude<CommandName, 'help' | 'version'>, CommandS
   push: { min: 2, max: 2, usage: 'modelll push <room> <file|-> [--relayout]', options: ['server', 'relayout'] },
   validate: { min: 1, max: 1, usage: 'modelll validate <file|->', options: [] },
   syntax: { min: 0, max: 0, usage: 'modelll syntax', options: [] },
-  mcp: { min: 0, max: 0, usage: 'modelll mcp', options: ['server'] },
 };
 
 const SPECIFIC_OPTIONS = ['server', 'title', 'output', 'relayout'] as const;

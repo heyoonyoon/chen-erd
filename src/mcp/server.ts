@@ -1,6 +1,5 @@
 /**
- * 도구를 MCP 서버에 등록한다. stdio('modelll mcp')와 HTTP(POST /mcp)가 이 함수 하나로 같은 서버를 만든다.
- * 연결(또는 요청)마다 새로 만들어 쓰는 가벼운 객체다.
+ * 도구를 MCP 서버에 등록한다. POST /mcp(src/server/mcp.ts)가 요청마다 이 함수로 서버를 새로 만들어 쓰고 버린다.
  */
 import { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';

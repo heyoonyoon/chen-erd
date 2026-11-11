@@ -18,17 +18,16 @@ Usage:
       Check a model file without contacting a server. Exits 1 on a syntax error or a validation error.
   ${COMMANDS.syntax.usage}
       Print a reference of the model text format.
-  ${COMMANDS.mcp.usage}
-      Run an MCP server on stdin/stdout so an AI client can create, read and update diagrams
-      (tools: create_diagram, read_diagram, update_diagram, validate_diagram, diagram_syntax).
-      Add it to a client with:  claude mcp add modelll -- npx -y modelll mcp
   modelll help | --help        Show this help.
   modelll --version            Show the version.
 
 <room> is a room URL (${DEFAULT_SERVER}/r/abc123) or a bare room id.
 
+AI clients that speak MCP can use the same diagrams without this CLI: add the remote MCP server
+${DEFAULT_SERVER}/mcp to the client (or <your server>/mcp when self-hosting).
+
 Options:
-  --server <url>   Server for bare room ids, "new" and "mcp". Default: $MODELLL_SERVER, then ${DEFAULT_SERVER}.
+  --server <url>   Server for bare room ids and "new". Default: $MODELLL_SERVER, then ${DEFAULT_SERVER}.
   --json           Print the result of new, push and validate as JSON.
   --lang <ko|en>   Language of validation messages. Default: $MODELLL_LANG, then $LANG (Korean if it starts with "ko").
 

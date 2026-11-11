@@ -1,6 +1,6 @@
 /**
  * MCP 도구가 방을 읽고 쓸 때 거치는 자리. 도구(tools.ts)는 이 인터페이스만 알고,
- * 실제 구현은 둘이다: HTTP API를 부르는 것(httpBackend.ts, 'modelll mcp')과 서버 안에서 방을 직접 다루는 것(src/server/mcp.ts, POST /mcp).
+ * 실제 구현은 서버 안에서 방을 직접 다루는 것 하나다(src/server/mcp.ts, POST /mcp). 테스트에서는 메모리에 둔 가짜로 바꿔 끼운다.
  */
 import { CliError } from '../cli/errors';
 import type { ChangeSummary } from '../cli/format';

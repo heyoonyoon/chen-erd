@@ -29,11 +29,6 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
         return await runValidate(io, args, options);
       case 'syntax':
         return runSyntax(io);
-      case 'mcp': {
-        // MCP 서버에 필요한 코드는 크다. 다른 명령이 느려지지 않도록 이 명령을 쓸 때만 읽는다
-        const { runMcp } = await import('./mcp');
-        return await runMcp(io, options);
-      }
     }
   } catch (err) {
     if (err instanceof CliError) {

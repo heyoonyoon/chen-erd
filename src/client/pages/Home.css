@@ -201,10 +201,10 @@
 .home-ai-fig.is-armed.is-in .home-ai-node { animation: home-pv-pop 400ms var(--h-ease) calc(700ms + var(--i) * 120ms) both; }
 .home-ai-fig.is-armed.is-in .home-ai-edge { animation: home-fade 400ms var(--h-ease) calc(900ms + var(--i) * 120ms) both; }
 
-/* AI를 연결하는 세 가지 방법: 설명과 복사할 글 한 토막 */
+/* AI를 연결하는 두 가지 방법(CLI, MCP): 설명과 복사할 글 한 토막 */
 .home-ways-title { margin-top: 56px; }
-/* 지시문이 들어가는 첫 카드는 글이 길어서 조금 넓게 잡는다 */
-.home-ways { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 16px; }
+/* 두 카드를 같은 폭으로 나란히 둔다 */
+.home-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 16px; }
 .home-way { display: flex; flex-direction: column; min-width: 0; padding: 24px; border: 1px solid var(--h-line); border-radius: 12px; background: var(--h-card); }
 .home-way-title { margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; }
 .home-way-body { margin: 8px 0 20px; font-size: 14px; line-height: 22px; color: var(--h-text-2); }
@@ -290,7 +290,6 @@
   .home-ai-fig { grid-template-columns: minmax(0, 1fr); }
   .home-ai-arrow { height: 48px; }
   .home-ai-arrow > svg { transform: rotate(90deg); }
-  .home-ways { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   /* 기능 카드는 한 줄에 하나씩, 화면 토막을 왼쪽에 둔다 */
   .home-feature-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .home-feature { flex-direction: row; }
@@ -307,6 +306,8 @@
   .home-ai-fig { margin-top: 32px; }
   .home-ai-term-body { padding: 16px 16px 20px; font-size: 12px; line-height: 20px; }
   .home-ways-title { margin-top: 40px; }
+  /* 두 카드는 휴대폰 폭에서만 세로로 쌓는다 */
+  .home-ways { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .home-way { padding: 20px; }
   .home-feature-grid { margin-top: 32px; }
   .home-feature { flex-direction: column; }

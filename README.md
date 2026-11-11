@@ -19,9 +19,9 @@ Chen 표기법의 ER 다이어그램과 EER 다이어그램을 여러 사람이 
 
 ## AI와 함께 사용하기
 
-다이어그램은 좌표가 없는 글로 읽고 쓸 수 있습니다. AI가 이 글을 고쳐 방에 반영하면 방을 열어 둔 사람의 화면에 바뀐 내용이 바로 나타납니다. 새로 생긴 도형은 자동으로 배치되고 사람이 옮겨 둔 도형은 제자리에 남습니다. AI를 연결하는 방법은 아래 세 가지이며, 방 화면 상단의 `AI로 편집` 버튼을 누르면 그 방의 주소가 들어간 지시문과 명령을 바로 복사할 수 있습니다.
+다이어그램은 좌표가 없는 글로 읽고 쓸 수 있습니다. AI가 이 글을 고쳐 방에 반영하면 방을 열어 둔 사람의 화면에 바뀐 내용이 바로 나타납니다. 새로 생긴 도형은 자동으로 배치되고 사람이 옮겨 둔 도형은 제자리에 남습니다. AI를 연결하는 방법은 CLI와 MCP 두 가지이며, 방 화면 상단의 `AI로 편집` 버튼을 누르면 그 방의 주소가 들어간 지시문과 MCP 주소를 바로 복사할 수 있습니다.
 
-### 터미널을 쓰는 AI
+### CLI로 사용하기
 
 Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI에게는 `npx -y modelll` 명령을 쓰도록 지시합니다. 이미 있는 방을 고칠 때는 다음과 같이 적고 마지막 줄에 바꿀 내용을 이어서 씁니다.
 
@@ -41,27 +41,18 @@ Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI에게는 `npx
 | `npx -y modelll push <방> <파일>` | 방의 다이어그램을 모델 파일과 같게 만듭니다. 그대로 남는 도형은 자리를 유지하며 `--relayout`을 붙이면 전체를 다시 배치합니다. |
 | `npx -y modelll validate <파일>` | 방에 반영하지 않고 모델 파일의 문법과 표기법만 확인합니다. |
 | `npx -y modelll syntax` | 텍스트 형식의 설명을 출력합니다. |
-| `npx -y modelll mcp` | MCP 서버로 실행합니다. 아래의 Claude Code 등록에서 사용합니다. |
 
-### Claude Code에 MCP 서버로 등록
+### MCP로 연결하기
 
-터미널에서 아래 명령을 한 번 실행합니다.
-
-```bash
-claude mcp add modelll -- npx -y modelll mcp
-```
-
-그 뒤로는 "쇼핑몰 주문 ERD를 그려 주세요"처럼 말하는 것만으로 다이어그램을 만들고 고칩니다. AI가 사용하는 도구는 `create_diagram`, `read_diagram`, `update_diagram`, `validate_diagram`, `diagram_syntax` 다섯 가지입니다.
-
-### claude.ai와 ChatGPT에 연결
-
-터미널 없이 쓰려면 claude.ai나 ChatGPT의 커넥터 설정에 아래 주소를 추가합니다. 도구는 위와 같습니다.
+claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구에서는 아래 주소를 원격 MCP 서버나 커넥터로 추가합니다. 설치할 것이 없고, 추가한 뒤에는 "쇼핑몰 주문 ERD를 그려 주세요"처럼 말하는 것만으로 다이어그램을 만들고 고칩니다.
 
 ```text
 https://modelll.app/mcp
 ```
 
-Claude Code에서도 같은 주소를 등록해 쓸 수 있습니다.
+AI가 사용하는 도구는 `create_diagram`, `read_diagram`, `update_diagram`, `validate_diagram`, `diagram_syntax` 다섯 가지입니다.
+
+명령으로 등록하는 클라이언트에서는 같은 주소를 명령에 적습니다. Claude Code에서는 다음과 같습니다.
 
 ```bash
 claude mcp add --transport http modelll https://modelll.app/mcp

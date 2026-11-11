@@ -255,6 +255,10 @@ describe('modelll CLI', () => {
       for (const word of ['modelll new', 'modelll pull', 'modelll push', 'modelll validate', 'modelll syntax', '--server', '--json', '--lang', 'MODELLL_SERVER']) {
         expect(text, word).toContain(word);
       }
+      // MCP는 CLI가 아니라 서버의 /mcp로 쓴다. 도움말은 그 주소만 알려 준다
+      expect(text).toContain('https://modelll.app/mcp');
+      expect(text).toContain('<your server>/mcp');
+      expect(text).not.toContain('modelll mcp');
     }
     expect((await run(['--version'])).out).toEqual([`modelll ${version}`]);
   });

@@ -15,7 +15,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { ErdEdge, ErdFile, ErdNode, Rect } from '../../shared/types';
 import { redo, undo } from '../actions';
-import { LOCAL_MCP_COMMAND, copyText, remoteMcpUrl } from '../ai';
+import { copyText, remoteMcpUrl } from '../ai';
 import { zoomToRect } from '../canvas/ViewportControls';
 import { setTitle } from '../collab/docOps';
 import { useConnectionStatus, useNodes, useRoom, useSynced, useTitle, useUndoState } from '../collab/hooks';
@@ -34,6 +34,7 @@ import { UserAvatars } from '../presence/Presence';
 import { navigate, roomUrl } from '../router';
 import { ui, useUi } from '../state/ui';
 import { useIssueCount } from './IssuesPanel';
+import { LogoMark } from './LogoMark';
 import { Toaster, toast } from './toast';
 import './TopBar.css';
 
@@ -60,29 +61,6 @@ function Icon({ children, size = 16 }: { children: ReactNode; size?: number }) {
       aria-hidden="true"
     >
       {children}
-    </svg>
-  );
-}
-
-/** 사각형(엔티티), 마름모(관계), 타원(속성)을 선으로 이은 로고 */
-function Logo() {
-  return (
-    <svg
-      className="topbar-logo"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M6 14.5 9.5 9.5M18 14 14.5 9.5" />
-      <path d="M12 2.5 17 7.25 12 12 7 7.25Z" fill="#fff" />
-      <rect x="2" y="14.5" width="8" height="6.5" rx="0.5" fill="#fff" />
-      <ellipse cx="18" cy="17.5" rx="4.5" ry="3.5" fill="#fff" />
     </svg>
   );
 }
@@ -574,7 +552,7 @@ function ImportDialog(props: {
 
 // ───────────── AI로 편집 ─────────────
 
-/** 명령이나 주소 한 줄과 복사 버튼 */
+/** 주소 한 줄과 복사 버튼 */
 function AiSnippet(props: { text: string; copyLabel: string; testId: string; onCopy: () => void }) {
   const t = useT();
   return (
@@ -597,8 +575,8 @@ function AiSnippet(props: { text: string; copyLabel: string; testId: string; onC
 }
 
 /**
- * AI에게 이 다이어그램을 맡기는 세 가지 방법을 보여 주는 팝오버.
- * 터미널을 쓰는 AI에게 줄 지시문(이 방의 주소가 들어 있다), 로컬 MCP 서버 등록 명령, 원격 MCP 서버 주소를 복사할 수 있다.
+ * AI에게 이 다이어그램을 맡기는 두 가지 방법(CLI, MCP)을 보여 주는 팝오버.
+ * CLI 명령을 실행하는 AI에게 줄 지시문(이 방의 주소가 들어 있다)과 MCP로 연결할 때 추가하는 원격 MCP 서버 주소를 복사할 수 있다.
  */
 function AiButton() {
   const t = useT();
@@ -685,24 +663,13 @@ function AiButton() {
             </button>
           </section>
 
-          <section className="topbar-ai-way" data-testid="ai-way-local">
-            <h3 className="topbar-ai-name">{t('ai.local.title')}</h3>
-            <p className="topbar-ai-text">{t('ai.local.desc')}</p>
-            <AiSnippet
-              text={LOCAL_MCP_COMMAND}
-              copyLabel={t('ai.local.copy')}
-              testId="ai-local"
-              onCopy={() => copy(LOCAL_MCP_COMMAND, 'toast.commandCopied')}
-            />
-          </section>
-
-          <section className="topbar-ai-way" data-testid="ai-way-remote">
-            <h3 className="topbar-ai-name">{t('ai.remote.title')}</h3>
-            <p className="topbar-ai-text">{t('ai.remote.desc')}</p>
+          <section className="topbar-ai-way" data-testid="ai-way-mcp">
+            <h3 className="topbar-ai-name">{t('ai.mcp.title')}</h3>
+            <p className="topbar-ai-text">{t('ai.mcp.desc')}</p>
             <AiSnippet
               text={remoteUrl}
-              copyLabel={t('ai.remote.copy')}
-              testId="ai-remote"
+              copyLabel={t('ai.mcp.copy')}
+              testId="ai-mcp"
               onCopy={() => copy(remoteUrl, 'toast.urlCopied')}
             />
           </section>
@@ -835,7 +802,7 @@ export function TopBar() {
           title={t('common.home')}
           onClick={() => navigate('/')}
         >
-          <Logo />
+          <LogoMark className="topbar-logo" size={22} />
           <span className="topbar-brand">{APP_NAME}</span>
         </button>
         <span className="topbar-divider" aria-hidden="true" />

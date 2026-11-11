@@ -35,8 +35,8 @@ if (built !== `modelll ${rootPackage.version}`) {
 const manifest = {
   name: 'modelll',
   version: rootPackage.version,
-  description: 'CLI and MCP server for modelll: create, read and update collaborative Chen-notation ER diagrams as plain text',
-  keywords: ['erd', 'er-diagram', 'entity-relationship', 'chen-notation', 'diagram', 'database', 'data-modeling', 'mcp', 'model-context-protocol', 'cli'],
+  description: 'CLI for modelll: create, read and update collaborative Chen-notation ER diagrams as plain text',
+  keywords: ['erd', 'er-diagram', 'entity-relationship', 'chen-notation', 'diagram', 'database', 'data-modeling', 'cli'],
   homepage: 'https://modelll.app',
   repository: { type: 'git', url: 'git+https://github.com/heyoonyoon/modelll.git' },
   bugs: { url: 'https://github.com/heyoonyoon/modelll/issues' },

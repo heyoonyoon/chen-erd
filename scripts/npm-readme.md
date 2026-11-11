@@ -1,38 +1,30 @@
 # modelll
 
-Command-line client and MCP server for [modelll](https://modelll.app), a real-time collaborative editor for Chen-notation ER diagrams.
+Command-line client for [modelll](https://modelll.app), a real-time collaborative editor for Chen-notation ER diagrams.
 
 A diagram lives in a room with a shareable URL. This tool reads and writes a room as plain text without coordinates: the server places new shapes automatically and keeps the positions people have already arranged, and everyone who has the room open in a browser sees each change live. No account is needed.
 
 Requires Node.js 20 or newer.
 
-## Use it from an AI assistant (MCP)
+## Use it from an AI assistant
 
-Run it as a local MCP server over stdio:
+There are two ways to let an assistant draw and edit diagrams.
 
-```sh
-claude mcp add modelll -- npx -y modelll mcp
+**CLI.** An assistant that can run commands, such as Claude Code, Cursor or Codex, can use this tool directly. Ask it to run `npx -y modelll syntax` to learn the text format, then to create or change a diagram with `new`, `pull` and `push` (see [Commands](#commands)).
+
+**MCP.** There is nothing to install: modelll hosts a remote MCP server (Streamable HTTP, no sign-in). In a client that supports remote MCP servers, such as claude.ai, ChatGPT or Cursor, add this URL as a remote MCP server or connector:
+
+```
+https://modelll.app/mcp
 ```
 
-For clients configured with JSON:
-
-```json
-{
-  "mcpServers": {
-    "modelll": { "command": "npx", "args": ["-y", "modelll", "mcp"] }
-  }
-}
-```
-
-Or connect to the hosted server, with nothing to install (Streamable HTTP, no sign-in):
+In a client that registers servers from the command line, pass the same URL. In Claude Code:
 
 ```sh
 claude mcp add --transport http modelll https://modelll.app/mcp
 ```
 
-In a client that asks for a server URL (a custom connector, for example), enter `https://modelll.app/mcp`.
-
-Both offer the same tools:
+The MCP server offers these tools:
 
 | Tool | What it does |
 | --- | --- |
@@ -50,7 +42,6 @@ npx modelll pull <room> -o model.mdl    # save the room's diagram as text
 npx modelll push <room> model.mdl       # make the room match the file
 npx modelll validate model.mdl          # check a file without contacting a server
 npx modelll syntax                      # print the text-format reference
-npx modelll mcp                         # run the MCP server on stdin/stdout
 ```
 
 `<room>` is a room URL such as `https://modelll.app/r/abc123`, or the bare id from it. `push` keeps the position of shapes that stay; `--relayout` arranges everything again. Use `-` instead of a file name to read from stdin, and `--json` for machine-readable results.
@@ -87,7 +78,7 @@ note "Draft"
 
 | Option | Meaning |
 | --- | --- |
-| `--server <url>` | Server to use for bare room ids, `new` and `mcp`. Default: `$MODELLL_SERVER`, then `https://modelll.app` |
+| `--server <url>` | Server to use for bare room ids and `new`. Default: `$MODELLL_SERVER`, then `https://modelll.app` |
 | `--json` | Print the result of `new`, `push` and `validate` as JSON |
 | `--lang <ko\|en>` | Language of validation messages. Default: `$MODELLL_LANG`, then `$LANG` |
 
