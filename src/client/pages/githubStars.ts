@@ -3,8 +3,8 @@
  */
 import { useEffect, useState } from 'react';
 
-export const REPO_URL = 'https://github.com/heyoonyoon/chen-erd';
-const API_URL = 'https://api.github.com/repos/heyoonyoon/chen-erd';
+export const REPO_URL = 'https://github.com/heyoonyoon/modelll';
+const API_URL = 'https://api.github.com/repos/heyoonyoon/modelll';
 const CACHE_KEY = 'chen-erd.stars';
 const CACHE_MS = 60 * 60 * 1000;
 

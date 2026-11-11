@@ -1,34 +1,23 @@
 /**
- * 첫 화면. 새 방 만들기, 코드로 들어가기, 최근 방 목록, 내 프로필.
+ * 첫 화면. 새 방 만들기, 코드로 들어가기, 최근 방 목록, 그 아래에 기능 설명(AI로 그리기, 주요 기능, 이용 안내, 지원하는 표기).
+ * 이름과 색은 여기서 정하지 않는다. 방에 처음 들어갈 때 묻고, 방 안에서 내 아바타를 눌러 바꾼다.
  */
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
-import { ROOM_ID_PATTERN, USER_COLORS } from '../../shared/types';
-import { APP_NAME, formatDateTime, formatNumber, useT, type MessageKey } from '../i18n';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import { ROOM_ID_PATTERN } from '../../shared/types';
+import { APP_NAME, formatDateTime, formatNumber, useT } from '../i18n';
 import { LanguageSelect } from '../i18n/LanguageSelect';
-import { forgetRoom, getIdentity, getRecentRooms, saveIdentity, type RecentRoom } from '../identity';
+import { forgetRoom, getRecentRooms, type RecentRoom } from '../identity';
 import { navigate, newRoomId, roomPath } from '../router';
+import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
+import { HomeAi } from './HomeAi';
+import { HomeFeatures } from './HomeFeatures';
 import { HomeNotation } from './HomeNotation';
-import { HomePreview, NamedCursor } from './HomePreview';
+import { HomePreview } from './HomePreview';
 import { extractRoomId, relativeTime } from './homeUtils';
 import { Reveal } from './motion';
 import './Home.css';
-
-const NAME_MAX = 20;
-/** USER_COLORS와 같은 순서의 색 이름(화면 낭독기용) */
-const COLOR_NAMES: MessageKey[] = [
-  'color.red',
-  'color.orange',
-  'color.yellow',
-  'color.green',
-  'color.teal',
-  'color.sky',
-  'color.blue',
-  'color.purple',
-  'color.pink',
-  'color.brown',
-];
 
 /** 주소로 갈 수 없는 id가 섞여 있으면 뺀다 */
 function loadRecent(): RecentRoom[] {
@@ -65,28 +54,16 @@ function GithubLink() {
   );
 }
 
-const FACTS: Array<{ title: MessageKey; body: MessageKey }> = [
-  { title: 'home.fact.pointers.title', body: 'home.fact.pointers.body' },
-  { title: 'home.fact.validation.title', body: 'home.fact.validation.body' },
-  { title: 'home.fact.export.title', body: 'home.fact.export.body' },
-];
-
 export function Home() {
   const t = useT();
-  const [me, setMe] = useState(getIdentity);
-  const [name, setName] = useState(() => me.name.slice(0, NAME_MAX));
   const [joinValue, setJoinValue] = useState('');
   const [joinError, setJoinError] = useState(false);
   const [recent, setRecent] = useState(loadRecent);
   const [now, setNow] = useState(() => Date.now());
   const joinRef = useRef<HTMLInputElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const nameId = useId();
-  const nameHintId = useId();
   const joinId = useId();
   const joinErrorId = useId();
   const recentTitleId = useId();
-  const profileTitleId = useId();
   const notationTitleId = useId();
 
   // 검색 엔진이 그린 뒤의 제목을 쓰므로 이름만이 아니라 무엇을 하는 곳인지까지 적는다
@@ -110,12 +87,6 @@ export function Home() {
       window.removeEventListener('focus', refresh);
     };
   }, []);
-
-  const onNameChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.slice(0, NAME_MAX);
-    setName(value);
-    setMe(saveIdentity({ name: value.trim() }));
-  };
 
   const createRoom = () => navigate(roomPath(newRoomId()));
 
@@ -149,14 +120,10 @@ export function Home() {
     setRecent(loadRecent());
   };
 
-  const shownName = name.trim() || t('presence.anonymous');
-  const initial = name.trim().slice(0, 1) || '?';
-
   const focusField = (el: HTMLInputElement | null) => {
     el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
     el?.focus({ preventScroll: true });
   };
-  const focusName = () => focusField(nameRef.current);
 
   return (
     <div className="home">
@@ -171,12 +138,6 @@ export function Home() {
           </div>
           <div className="home-nav-end">
             <LanguageSelect className="home-lang" />
-            <button type="button" className="home-me-chip" title={t('home.profile.edit')} onClick={focusName}>
-              <span className="home-avatar" style={{ background: me.color }}>
-                {initial}
-              </span>
-              <span className="home-me-chip-name">{name.trim() || t('home.profile.setName')}</span>
-            </button>
           </div>
         </div>
       </nav>
@@ -293,65 +254,11 @@ export function Home() {
                   </p>
                 )}
               </section>
-
-              <section className="home-profile" aria-labelledby={profileTitleId}>
-                <h2 id={profileTitleId} className="home-section-title">
-                  {t('home.profile.title')}
-                </h2>
-                <div className="home-profile-preview" aria-hidden="true">
-                  <NamedCursor name={shownName} color={me.color} />
-                </div>
-                <label className="home-label" htmlFor={nameId}>
-                  {t('home.profile.name')}
-                </label>
-                <input
-                  id={nameId}
-                  ref={nameRef}
-                  className="home-input"
-                  type="text"
-                  value={name}
-                  maxLength={NAME_MAX}
-                  placeholder={t('nickname.name')}
-                  autoComplete="nickname"
-                  spellCheck={false}
-                  aria-describedby={nameHintId}
-                  data-testid="name-input"
-                  onChange={onNameChange}
-                />
-                <div className="home-colors" role="group" aria-label={t('home.profile.color')}>
-                  {USER_COLORS.map((color, i) => {
-                    const active = color.toLowerCase() === me.color.toLowerCase();
-                    const label = COLOR_NAMES[i] ? t(COLOR_NAMES[i]) : t('home.profile.colorN', { n: i + 1 });
-                    return (
-                      <button
-                        key={color}
-                        type="button"
-                        className={active ? 'home-color is-active' : 'home-color'}
-                        style={{ background: color }}
-                        aria-label={label}
-                        aria-pressed={active}
-                        title={label}
-                        data-testid="color-swatch"
-                        onClick={() => setMe(saveIdentity({ color }))}
-                      />
-                    );
-                  })}
-                </div>
-                <p id={nameHintId} className="home-hint">
-                  {t('home.profile.hint')}
-                </p>
-              </section>
             </Reveal>
           </div>
 
-          <section className="home-facts" aria-label={t('home.facts.label')}>
-            {FACTS.map((f, i) => (
-              <Reveal key={f.title} className="home-fact" delay={i * 80}>
-                <h3 className="home-fact-title">{t(f.title)}</h3>
-                <p className="home-fact-body">{t(f.body)}</p>
-              </Reveal>
-            ))}
-          </section>
+          <HomeAi />
+          <HomeFeatures />
 
           <section className="home-notation" aria-labelledby={notationTitleId}>
             <Reveal>
@@ -364,6 +271,8 @@ export function Home() {
           </section>
         </div>
       </main>
+      {/* 복사 결과를 알리는 알림. 방 화면에서는 상단 바가 그린다 */}
+      <Toaster />
     </div>
   );
 }

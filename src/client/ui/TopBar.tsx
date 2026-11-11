@@ -1,9 +1,10 @@
 /**
  * 상단 바. [담당: topbar 에이전트]
- * 왼쪽: 홈, 제목, 연결 상태, 실행 취소/다시 실행. 오른쪽: 검증, 표기법, 내보내기, 공유, 도움말, 접속자.
+ * 왼쪽: 홈, 제목, 연결 상태, 실행 취소/다시 실행. 오른쪽: 검증, 표기법, 내보내기, AI로 편집, 공유, 도움말, 접속자.
  */
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ChangeEvent,
@@ -14,6 +15,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { ErdEdge, ErdFile, ErdNode, Rect } from '../../shared/types';
 import { redo, undo } from '../actions';
+import { LOCAL_MCP_COMMAND, copyText, remoteMcpUrl } from '../ai';
 import { zoomToRect } from '../canvas/ViewportControls';
 import { setTitle } from '../collab/docOps';
 import { useConnectionStatus, useNodes, useRoom, useSynced, useTitle, useUndoState } from '../collab/hooks';
@@ -170,25 +172,35 @@ const icons = {
       <path d="M8 11.4V7.9M6.5 9.4 8 7.9l1.5 1.5" />
     </Icon>
   ),
+  ai: (
+    <Icon>
+      <path d="M7 2.25 8.3 5.7l3.45 1.3L8.3 8.3 7 11.75 5.7 8.3 2.25 7 5.7 5.7Z" />
+      <path d="M12.25 10.5v3M10.75 12h3" />
+    </Icon>
+  ),
 };
 
 // ───────────── 공통 ─────────────
 
-/** 열려 있는 동안 ref 바깥을 누르거나 Esc를 누르면 닫는다. */
-function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, onClose: () => void): void {
+/** 열려 있는 동안 ref 바깥을 누르거나 Esc를 누르면 닫는다. onClose는 어느 쪽으로 닫혔는지를 받는다. */
+function useDismiss(
+  open: boolean,
+  ref: RefObject<HTMLElement | null>,
+  onClose: (reason: 'outside' | 'escape') => void,
+): void {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const onDown = (e: Event) => {
       const el = ref.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) closeRef.current();
+      if (el && e.target instanceof Node && !el.contains(e.target)) closeRef.current('outside');
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       // 이 Esc는 메뉴를 닫는 데만 쓴다(선택 해제 같은 전역 단축키로 넘기지 않는다)
       e.stopPropagation();
-      closeRef.current();
+      closeRef.current('escape');
     };
     document.addEventListener('pointerdown', onDown, true);
     window.addEventListener('keydown', onKey, true);
@@ -560,6 +572,146 @@ function ImportDialog(props: {
   );
 }
 
+// ───────────── AI로 편집 ─────────────
+
+/** 명령이나 주소 한 줄과 복사 버튼 */
+function AiSnippet(props: { text: string; copyLabel: string; testId: string; onCopy: () => void }) {
+  const t = useT();
+  return (
+    <div className="topbar-ai-row">
+      <code className="topbar-ai-code" data-testid={`${props.testId}-text`}>
+        {props.text}
+      </code>
+      <button
+        type="button"
+        className="btn"
+        data-testid={`${props.testId}-copy`}
+        aria-label={props.copyLabel}
+        title={props.copyLabel}
+        onClick={props.onCopy}
+      >
+        {t('common.copy')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * AI에게 이 다이어그램을 맡기는 세 가지 방법을 보여 주는 팝오버.
+ * 터미널을 쓰는 AI에게 줄 지시문(이 방의 주소가 들어 있다), 로컬 MCP 서버 등록 명령, 원격 MCP 서버 주소를 복사할 수 있다.
+ */
+function AiButton() {
+  const t = useT();
+  const room = useRoom();
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  // Esc로 닫으면 포커스를 버튼으로 돌려준다. 바깥을 눌러 닫을 때는 누른 곳이 포커스를 가져가게 둔다
+  useDismiss(open, wrapRef, (reason) => {
+    setOpen(false);
+    if (reason === 'escape') buttonRef.current?.focus();
+  });
+
+  // 열리면 가장 많이 쓰는 지시문 복사 버튼이 키를 받는다
+  useEffect(() => {
+    if (open) primaryRef.current?.focus();
+  }, [open]);
+
+  const prompt = t('ai.cli.promptRoom', { url: roomUrl(room.id) });
+  const remoteUrl = remoteMcpUrl();
+
+  const copy = async (text: string, doneKey: MessageKey) => {
+    if (await copyText(text)) toast(t(doneKey));
+    else toast(t('toast.clipboardFailed'), 'error');
+  };
+
+  return (
+    <div
+      className="topbar-pop-wrap"
+      ref={wrapRef}
+      onBlur={(e) => {
+        // Tab으로 팝오버 밖으로 나가면 닫는다
+        const next = e.relatedTarget;
+        if (open && next instanceof Node && !e.currentTarget.contains(next)) setOpen(false);
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`btn btn-ghost topbar-btn${open ? ' is-active' : ''}`}
+        data-testid="ai-button"
+        title={t('topbar.aiTitle')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        // 방 화면의 전역 단축키(글자 키로 도구 고르기)로 새지 않게 한다
+        onKeyDown={stopKeys}
+        onKeyUp={stopKeys}
+      >
+        {icons.ai}
+        <span className="topbar-label topbar-ai-label">{t('topbar.ai')}</span>
+      </button>
+      {open && (
+        <div
+          className="panel topbar-ai"
+          role="dialog"
+          aria-labelledby={titleId}
+          data-testid="ai-popover"
+          onKeyDown={stopKeys}
+          onKeyUp={stopKeys}
+        >
+          <h2 id={titleId} className="topbar-ai-title">
+            {t('ai.title')}
+          </h2>
+          <p className="topbar-ai-text">{t('ai.intro')}</p>
+
+          <section className="topbar-ai-way" data-testid="ai-way-cli">
+            <h3 className="topbar-ai-name">{t('ai.cli.title')}</h3>
+            <p className="topbar-ai-text">{t('ai.cli.descRoom')}</p>
+            <pre className="topbar-ai-code topbar-ai-prompt" data-testid="ai-prompt-text">
+              {prompt}
+            </pre>
+            <button
+              ref={primaryRef}
+              type="button"
+              className="btn btn-primary topbar-ai-primary"
+              data-testid="ai-prompt-copy"
+              onClick={() => copy(prompt, 'toast.promptCopied')}
+            >
+              {icons.copy}
+              {t('ai.cli.copy')}
+            </button>
+          </section>
+
+          <section className="topbar-ai-way" data-testid="ai-way-local">
+            <h3 className="topbar-ai-name">{t('ai.local.title')}</h3>
+            <p className="topbar-ai-text">{t('ai.local.desc')}</p>
+            <AiSnippet
+              text={LOCAL_MCP_COMMAND}
+              copyLabel={t('ai.local.copy')}
+              testId="ai-local"
+              onCopy={() => copy(LOCAL_MCP_COMMAND, 'toast.commandCopied')}
+            />
+          </section>
+
+          <section className="topbar-ai-way" data-testid="ai-way-remote">
+            <h3 className="topbar-ai-name">{t('ai.remote.title')}</h3>
+            <p className="topbar-ai-text">{t('ai.remote.desc')}</p>
+            <AiSnippet
+              text={remoteUrl}
+              copyLabel={t('ai.remote.copy')}
+              testId="ai-remote"
+              onCopy={() => copy(remoteUrl, 'toast.urlCopied')}
+            />
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────── 공유 ─────────────
 
 function ShareButton() {
@@ -753,11 +905,12 @@ export function TopBar() {
           <span className="topbar-label">{t('topbar.legend')}</span>
         </button>
         <ExportMenu />
+        <AiButton />
         <ShareButton />
         <LanguageSelect variant="compact" className="topbar-language" />
         <button
           type="button"
-          className={`btn btn-ghost btn-icon${helpOpen ? ' is-active' : ''}`}
+          className={`btn btn-ghost btn-icon topbar-help${helpOpen ? ' is-active' : ''}`}
           data-testid="help-button"
           title={t('topbar.helpTitle')}
           aria-label={t('topbar.help')}

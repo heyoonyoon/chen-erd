@@ -6,6 +6,7 @@ import type { ErdFile, ErdNode } from '../../shared/types';
 import { RoomContext } from '../collab/hooks';
 import { LOCAL_ORIGIN, addNode, getEdgesMap, getMetaMap, getNodesMap, getTitle, readEdge, readNode, setTitle } from '../collab/docOps';
 import { ElementStore, type Room } from '../collab/room';
+import { setLocale } from '../i18n';
 import { useUi } from '../state/ui';
 
 // 다른 담당의 모듈은 계약(시그니처)만 흉내 낸다
@@ -417,6 +418,180 @@ describe('TopBar 공유', () => {
     await screen.findByTestId('share-popover');
     fireEvent.pointerDown(document.body);
     expect(screen.queryByTestId('share-popover')).toBeNull();
+  });
+});
+
+describe('TopBar AI로 편집', () => {
+  const stubClipboard = () => {
+    const writeText = vi.fn(async (_t: string) => undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText }, platform: 'MacIntel', userAgent: 'x' });
+    return writeText;
+  };
+  const ROOM_URL = () => `${location.origin}/r/testroom`;
+
+  it('공유 버튼 앞에 있고, 누르면 세 가지 방법을 보여 주며 다시 누르면 닫힌다', () => {
+    const { room } = makeRoom();
+    renderBar(room);
+    const btn = screen.getByTestId('ai-button');
+    expect(btn.textContent).toBe('AI로 편집');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
+    // 내보내기와 공유 사이에 놓인다
+    const order = [...document.querySelectorAll('.topbar-right [data-testid$="-button"]')].map((el) => el.getAttribute('data-testid'));
+    expect(order.slice(order.indexOf('export-button'), order.indexOf('share-button') + 1)).toEqual(['export-button', 'ai-button', 'share-button']);
+    expect(screen.queryByTestId('ai-popover')).toBeNull();
+
+    fireEvent.click(btn);
+    const pop = screen.getByTestId('ai-popover');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(pop.getAttribute('role')).toBe('dialog');
+    expect(document.getElementById(pop.getAttribute('aria-labelledby')!)!.textContent).toBe('AI로 이 다이어그램 편집하기');
+    expect(screen.getByTestId('ai-way-cli').textContent).toContain('터미널을 쓰는 AI에게 시키기');
+    expect(screen.getByTestId('ai-way-local').textContent).toContain('Claude Code에 MCP 서버로 등록하기');
+    expect(screen.getByTestId('ai-way-remote').textContent).toContain('claude.ai나 ChatGPT의 커넥터 설정');
+    expect(screen.getByTestId('ai-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
+    // 원격 MCP 주소는 지금 열려 있는 사이트를 기준으로 만든다
+    expect(screen.getByTestId('ai-remote-text').textContent).toBe(`${location.origin}/mcp`);
+    // 열리면 가장 많이 쓰는 지시문 복사 버튼이 포커스를 받는다
+    expect(document.activeElement).toBe(screen.getByTestId('ai-prompt-copy'));
+
+    fireEvent.click(btn);
+    expect(screen.queryByTestId('ai-popover')).toBeNull();
+  });
+
+  it('지시문에는 이 방의 주소와 syntax, pull, push 명령이 들어 있고 바꿀 내용을 적는 자리에서 끝난다', () => {
+    const { room } = makeRoom();
+    renderBar(room);
+    fireEvent.click(screen.getByTestId('ai-button'));
+    expect(screen.getByTestId('ai-prompt-text').textContent).toBe(
+      [
+        `이 modelll ER 다이어그램을 고쳐 주세요. 방 주소는 ${ROOM_URL()} 입니다.`,
+        '먼저 `npx -y modelll syntax`를 실행해 텍스트 형식을 읽어 주세요.',
+        `그다음 \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`로 현재 다이어그램을 받아 파일을 고치고, \`npx -y modelll push ${ROOM_URL()} model.mdl\`로 방에 반영해 주세요.`,
+        '바꿀 내용: ',
+      ].join('\n'),
+    );
+  });
+
+  it('복사 버튼마다 해당 글을 클립보드에 넣고 알림으로 알린다', async () => {
+    const writeText = stubClipboard();
+    const { room } = makeRoom();
+    renderBar(room);
+    fireEvent.click(screen.getByTestId('ai-button'));
+    const prompt = screen.getByTestId('ai-prompt-text').textContent!;
+
+    fireEvent.click(screen.getByTestId('ai-prompt-copy'));
+    await waitFor(() =>
+      expect(toasts()).toContainEqual(['지시문을 복사했습니다. AI에게 붙여 넣고 바꿀 내용을 이어서 적어 주세요', 'info']),
+    );
+    expect(writeText).toHaveBeenLastCalledWith(prompt);
+    expect(prompt).toContain(ROOM_URL());
+
+    fireEvent.click(screen.getByTestId('ai-local-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['명령을 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith('claude mcp add modelll -- npx -y modelll mcp');
+
+    fireEvent.click(screen.getByTestId('ai-remote-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['주소를 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/mcp`);
+    // 복사한 뒤에도 다른 것을 이어서 복사할 수 있게 열어 둔다
+    expect(screen.queryByTestId('ai-popover')).not.toBeNull();
+    expect(screen.getByTestId('ai-local-copy').getAttribute('aria-label')).toBe('명령 복사');
+    expect(screen.getByTestId('ai-remote-copy').getAttribute('aria-label')).toBe('주소 복사');
+  });
+
+  it('클립보드를 쓸 수 없으면 error 알림으로 알리고 글은 직접 고를 수 있게 남겨 둔다', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32', userAgent: 'x' });
+    const { room } = makeRoom();
+    renderBar(room);
+    fireEvent.click(screen.getByTestId('ai-button'));
+    fireEvent.click(screen.getByTestId('ai-prompt-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사하지 못했습니다', 'error']));
+    expect(screen.getByTestId('ai-prompt-text').textContent).toContain('npx -y modelll pull');
+
+    // 복사가 거부된 경우도 같다
+    useToasts.getState().clear();
+    vi.stubGlobal('navigator', { clipboard: { writeText: async () => Promise.reject(new Error('denied')) } });
+    fireEvent.click(screen.getByTestId('ai-remote-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사하지 못했습니다', 'error']));
+  });
+
+  it('Esc로 닫으면 포커스가 버튼으로 돌아가고, 바깥을 누르면 닫힌다', () => {
+    const { room } = makeRoom();
+    renderBar(room);
+    const btn = screen.getByTestId('ai-button');
+    fireEvent.click(btn);
+    fireEvent.pointerDown(screen.getByTestId('ai-popover'));
+    expect(screen.queryByTestId('ai-popover')).not.toBeNull();
+
+    fireEvent.keyDown(screen.getByTestId('ai-prompt-copy'), { key: 'Escape' });
+    expect(screen.queryByTestId('ai-popover')).toBeNull();
+    expect(document.activeElement).toBe(btn);
+
+    fireEvent.click(btn);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByTestId('ai-popover')).toBeNull();
+  });
+
+  it('Tab으로 팝오버 밖으로 나가면 닫힌다', () => {
+    const { room } = makeRoom();
+    renderBar(room);
+    fireEvent.click(screen.getByTestId('ai-button'));
+    // 팝오버 안에서 옮겨 다니는 동안에는 열려 있다
+    fireEvent.blur(screen.getByTestId('ai-prompt-copy'), { relatedTarget: screen.getByTestId('ai-local-copy') });
+    expect(screen.queryByTestId('ai-popover')).not.toBeNull();
+    fireEvent.blur(screen.getByTestId('ai-remote-copy'), { relatedTarget: screen.getByTestId('share-button') });
+    expect(screen.queryByTestId('ai-popover')).toBeNull();
+  });
+
+  it('버튼과 팝오버 안의 키 입력이 window까지 올라가지 않는다(캔버스 단축키로 새지 않는다)', () => {
+    const { room } = makeRoom();
+    renderBar(room);
+    const spy = vi.fn();
+    window.addEventListener('keydown', spy);
+    window.addEventListener('keyup', spy);
+    fireEvent.keyDown(screen.getByTestId('ai-button'), { key: 'e', code: 'KeyE' });
+    fireEvent.click(screen.getByTestId('ai-button'));
+    for (const id of ['ai-prompt-copy', 'ai-prompt-text', 'ai-local-copy', 'ai-remote-copy']) {
+      fireEvent.keyDown(screen.getByTestId(id), { key: 'e', code: 'KeyE' });
+      fireEvent.keyUp(screen.getByTestId(id), { key: 'e', code: 'KeyE' });
+      fireEvent.keyDown(screen.getByTestId(id), { key: 'Backspace', code: 'Backspace' });
+    }
+    window.removeEventListener('keydown', spy);
+    window.removeEventListener('keyup', spy);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('영어 화면에서는 지시문과 설명이 영어로 나오고 명령은 그대로다', async () => {
+    const writeText = stubClipboard();
+    await act(async () => {
+      await setLocale('en', { persist: false });
+    });
+    try {
+      const { room } = makeRoom();
+      renderBar(room);
+      const btn = screen.getByTestId('ai-button');
+      expect(btn.textContent).toBe('Use with AI');
+      fireEvent.click(btn);
+      const prompt = [
+        `Please edit this modelll ER diagram: ${ROOM_URL()}`,
+        'First run `npx -y modelll syntax` to read the text format.',
+        `Then fetch the current diagram with \`npx -y modelll pull ${ROOM_URL()} -o model.mdl\`, edit the file, and apply it with \`npx -y modelll push ${ROOM_URL()} model.mdl\`.`,
+        'What to change: ',
+      ].join('\n');
+      expect(screen.getByTestId('ai-prompt-text').textContent).toBe(prompt);
+      expect(screen.getByTestId('ai-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
+      expect(screen.getByTestId('ai-popover').textContent).not.toMatch(/[ㄱ-ㆎ가-힣]/);
+      fireEvent.click(screen.getByTestId('ai-prompt-copy'));
+      await waitFor(() =>
+        expect(toasts()).toContainEqual(['Prompt copied. Paste it into your assistant and add what you want changed', 'info']),
+      );
+      expect(writeText).toHaveBeenLastCalledWith(prompt);
+    } finally {
+      await act(async () => {
+        await setLocale('ko', { persist: false });
+      });
+    }
   });
 });
 

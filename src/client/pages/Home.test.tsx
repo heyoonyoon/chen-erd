@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { APP_NAME } from '../../shared/app';
-import { ROOM_ID_PATTERN, USER_COLORS } from '../../shared/types';
+import { ROOM_ID_PATTERN } from '../../shared/types';
 import { LOCALES, loadLocale, setLocale, type Locale } from '../i18n';
-import { getIdentity, getRecentRooms, rememberRoom, saveIdentity } from '../identity';
+import { getRecentRooms, rememberRoom, saveIdentity } from '../identity';
 import { approximateLineWidth } from '../text/measure';
+import { useToasts } from '../ui/toast';
 import { REPO_URL } from './githubStars';
 import { Home } from './Home';
+import { AI_NODES, AI_TEXT, modelName } from './HomeAi';
 import { NODES, SAMPLE_TEXT } from './HomePreview';
 
 const HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
@@ -35,6 +37,8 @@ beforeEach(() => {
 });
 afterEach(async () => {
   cleanup();
+  vi.unstubAllGlobals();
+  useToasts.getState().clear();
   await switchTo('ko');
   localStorage.clear();
 });
@@ -79,26 +83,12 @@ describe('Home', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('저장된 이름을 채우고, 바꾸면 저장한다', () => {
+  it('이름과 색을 정하는 자리는 첫 화면에 없다(방에 들어갈 때 묻는다)', () => {
     saveIdentity({ name: '희윤' });
-    render(<Home />);
-    const input = screen.getByLabelText('내 이름') as HTMLInputElement;
-    expect(input.value).toBe('희윤');
-    expect(input.maxLength).toBe(20);
-    fireEvent.change(input, { target: { value: '김철수' } });
-    expect(getIdentity().name).toBe('김철수');
-  });
-
-  it('색을 누르면 저장하고 강조한다', () => {
-    saveIdentity({ color: USER_COLORS[0] });
-    render(<Home />);
-    const swatches = screen.getAllByTestId('color-swatch');
-    expect(swatches).toHaveLength(USER_COLORS.length);
-    expect(swatches[0].getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(swatches[3]);
-    expect(getIdentity().color).toBe(USER_COLORS[3]);
-    expect(swatches[3].getAttribute('aria-pressed')).toBe('true');
-    expect(swatches[0].getAttribute('aria-pressed')).toBe('false');
+    const { container } = render(<Home />);
+    expect(screen.queryByTestId('name-input')).toBeNull();
+    expect(screen.queryByTestId('color-swatch')).toBeNull();
+    expect(container.querySelector('.home-nav')!.textContent).not.toContain('희윤');
   });
 
   it('상단에 GitHub 저장소 링크를 새 탭으로 열리게 두고, 별 수를 모르면 이름을 적는다', () => {
@@ -133,6 +123,8 @@ describe('Home', () => {
     expect(stage.querySelectorAll('[data-edge-id]')).toHaveLength(12);
     expect(stage.querySelector('.is-new')).toBeNull();
     expect(stage.querySelectorAll('.home-cursor')).toHaveLength(2);
+    // AI 구역의 그림도 감춰 둔 것 없이 완성된 모습이다
+    expect(screen.getByTestId('ai-figure').classList.contains('is-armed')).toBe(false);
   });
 
   it('최근 목록이 비면 구역을 숨긴다', () => {
@@ -170,6 +162,8 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     // 옛 이름이 화면에 남아 있지 않다(Chen 표기법이라는 말은 남는다)
     expect(container.textContent).not.toContain('Chen ERD');
     expect(container.querySelector('.home-lead')!.textContent).toContain('Chen 표기법');
+    // 처음 온 사람이 머리글에서 AI가 함께 그릴 수 있다는 것을 알게 한다
+    expect(container.querySelector('.home-lead')!.textContent).toContain('Claude나 ChatGPT 같은 AI');
   });
 
   it('한국어 제목은 두 줄이고 둘째 줄은 ERD다', () => {
@@ -211,8 +205,6 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(screen.getByTestId('recent-room').textContent).toContain('Just now');
     expect(screen.getByTestId('forget-room').getAttribute('aria-label')).toBe('Remove Untitled diagram from the list');
     expect(screen.getByTestId('github-link').getAttribute('aria-label')).toBe('Open the GitHub repository');
-    expect(screen.getAllByTestId('color-swatch')[0].getAttribute('aria-label')).toBe('Red');
-    expect((screen.getByLabelText('My name') as HTMLInputElement).placeholder).toBe('Name');
 
     fireEvent.click(screen.getByTestId('join-button'));
     expect(screen.getByRole('alert').textContent).toBe('That doesn’t look like a valid room code');
@@ -254,6 +246,131 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     expect(container.querySelector('.home-brand-name')!.textContent).toBe('modelll');
   });
 
+  it('기능 설명은 AI로 그리기, 주요 기능, 이용 안내, 지원하는 표기 순서로 놓인다', () => {
+    const { container } = render(<Home />);
+    const sections = [...container.querySelectorAll('.home-wrap > section')];
+    expect(sections.map((el) => el.querySelector('h2')!.textContent)).toEqual(['AI와 함께 그리기', '주요 기능', '이용 안내', '지원하는 표기']);
+    // 예전의 한 줄짜리 소개는 남아 있지 않다
+    expect(container.textContent).not.toContain('한 캔버스, 여러 포인터');
+    expect(container.textContent).not.toContain('보고서에 넣는 그림');
+  });
+
+  it('AI 구역: 요청과 글로 쓴 모델, 그 모델대로 그린 다이어그램을 나란히 보여 준다', () => {
+    render(<Home />);
+    const figure = screen.getByTestId('ai-figure');
+    expect(figure.textContent).toContain('수강 관리 ERD를 그려 주세요');
+    expect(screen.getByTestId('ai-model-text').textContent).toBe(
+      [
+        'entity 학생 {',
+        '  학번 key',
+        '  이름',
+        '  전화번호 multi',
+        '}',
+        'entity 과목 { 과목코드 key, 학점 }',
+        'relationship 수강 (학생 M total, 과목 N) { 성적 }',
+        '',
+      ].join('\n'),
+    );
+    expect(figure.textContent).toContain('npx -y modelll push');
+    // 글에 적힌 엔티티 둘, 관계 하나, 속성 여섯과 그 사이의 선
+    expect(figure.querySelectorAll('[data-node-id]')).toHaveLength(9);
+    expect(figure.querySelectorAll('[data-edge-id]')).toHaveLength(8);
+    expect([...figure.querySelectorAll('[data-node-id] text')].map((el) => el.textContent)).toEqual(
+      expect.arrayContaining(['학생', '과목', '수강', '학번', '전화번호', '성적']),
+    );
+  });
+
+  it('AI 구역: 세 가지 방법마다 복사할 글이 있고 누르면 클립보드에 넣고 알린다', async () => {
+    const writeText = vi.fn(async (_t: string) => undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    render(<Home />);
+    const toasts = () => useToasts.getState().items.map((t) => [t.message, t.kind]);
+    expect(screen.getByTestId('home-way-cli').textContent).toContain('Claude Code, Cursor, Codex');
+    expect(screen.getByTestId('home-way-remote').textContent).toContain('claude.ai나 ChatGPT의 커넥터 설정');
+
+    const cli = '`npx -y modelll syntax`로 텍스트 형식을 읽고 도서관 대출 관리 ERD를 `npx -y modelll new`로 만들어 방 주소를 알려 주세요.';
+    expect(screen.getByTestId('home-cli-text').textContent).toBe(cli);
+    fireEvent.click(screen.getByTestId('home-cli-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith(cli);
+
+    expect(screen.getByTestId('home-local-text').textContent).toBe('claude mcp add modelll -- npx -y modelll mcp');
+    fireEvent.click(screen.getByTestId('home-local-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['명령을 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith('claude mcp add modelll -- npx -y modelll mcp');
+
+    // 원격 MCP 주소는 지금 열려 있는 사이트를 기준으로 만든다
+    expect(screen.getByTestId('home-remote-text').textContent).toBe(`${location.origin}/mcp`);
+    fireEvent.click(screen.getByTestId('home-remote-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['주소를 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/mcp`);
+    // 알림은 첫 화면이 직접 그린다(방 화면에서는 상단 바가 그린다)
+    expect(screen.getAllByTestId('toast').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('.toast-stack')).toHaveLength(1);
+  });
+
+  it('주요 기능은 공동 편집, 검증, 내보내기 세 가지를 화면 토막과 함께 설명한다', () => {
+    render(<Home />);
+    const collab = screen.getByTestId('home-feature-collab');
+    expect(collab.querySelector('h3')!.textContent).toBe('실시간 공동 편집');
+    expect(collab.textContent).toContain('15명까지');
+    // 접속자 셋과 나머지 인원을 합치면 방의 정원이다
+    expect([...collab.querySelectorAll('.home-fx-mates b')].map((el) => el.textContent)).toEqual(['지', '서', '도', '+12']);
+    expect([...collab.querySelectorAll('.home-cursor-name')].map((el) => el.textContent)).toEqual(['지민', '서연']);
+
+    const validation = screen.getByTestId('home-feature-validation');
+    expect(validation.querySelector('h3')!.textContent).toBe('표기법 검증');
+    // 화면 토막의 문장은 방 화면의 검증 패널이 쓰는 문장 그대로다
+    expect([...validation.querySelectorAll('.home-fx-issue')].map((el) => el.textContent)).toEqual([
+      "'분반' 약한 엔티티가 식별 관계(이중 마름모)에 연결되어 있지 않습니다",
+      "'과목' 엔티티에 식별자(키 속성)가 없습니다",
+      "'학생' 엔티티와 '수강' 관계 사이의 선에 카디널리티(1, M, N)가 없습니다",
+    ]);
+    expect(validation.querySelector('.home-fx-panel-head')!.textContent).toBe('검증오류 1개경고 2개');
+
+    const exporting = screen.getByTestId('home-feature-export');
+    expect(exporting.querySelector('h3')!.textContent).toBe('내보내기');
+    expect([...exporting.querySelectorAll('.home-fx-menu-text')].map((el) => el.textContent)).toEqual([
+      'PNG로 저장',
+      'PNG 복사',
+      'SVG로 저장',
+      'JSON 백업 저장',
+    ]);
+    // 화면 토막은 장식이라 보조 기술에는 설명 글만 읽힌다
+    expect(collab.querySelector('.home-feature-visual')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('이용 안내는 가입, 링크, 언어, 보관 기간 네 가지다', () => {
+    render(<Home />);
+    const facts = screen.getByTestId('home-facts');
+    expect([...facts.querySelectorAll('h3')].map((el) => el.textContent)).toEqual(['가입 없이 시작', '링크가 곧 방', '10개 언어', '30일 보관']);
+    expect(facts.textContent).toContain('30일 동안 아무도 열지 않은 다이어그램은 자동으로 삭제되므로');
+  });
+
+  it('영어: 기능 설명이 영어로 나오고 띄어쓰기가 있는 이름은 모델 글에서 큰따옴표로 감싼다', async () => {
+    await switchTo('en');
+    const { container } = render(<Home />);
+    expect([...container.querySelectorAll('.home-wrap > section')].map((el) => el.querySelector('h2')!.textContent)).toEqual([
+      'Draw with an AI assistant',
+      'Key features',
+      'Good to know',
+      'Supported notation',
+    ]);
+    expect(container.querySelector('.home-lead')!.textContent).toContain('AI assistant');
+    const model = screen.getByTestId('ai-model-text').textContent!;
+    expect(model).toContain('  "Student ID" key\n');
+    expect(model).toContain('entity Course { "Course code" key, Credits }\n');
+    expect(model).toContain('relationship Enrolls (Student M total, Course N) { Grade }\n');
+    expect(screen.getByTestId('home-cli-text').textContent).toBe(
+      'Run `npx -y modelll syntax` to read the text format, then create an ERD for a library loan system with `npx -y modelll new` and give me the room URL.',
+    );
+    expect(screen.getByTestId('home-feature-validation').querySelector('.home-fx-issue')!.textContent).toBe(
+      'Weak entity “Section” isn’t connected to an identifying relationship (double diamond).',
+    );
+    expect(modelName('Student')).toBe('Student');
+    expect(modelName('a "b"')).toBe('"a \\"b\\""');
+  });
+
   it('상단의 언어 선택으로 바꾸면 새로 고치지 않고 화면과 예시 장면이 그 언어로 다시 그려진다', async () => {
     const { container } = render(<Home />);
     const nav = container.querySelector('.home-nav')!;
@@ -285,6 +402,12 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
         expect(text.includes('\n'), `${locale} ${node.id}`).toBe(false);
         // 어림한 글자 폭이 도형 폭의 86%를 넘지 않게 한다(타원과 마름모는 가장자리로 갈수록 좁아진다)
         expect(approximateLineWidth(text), `${locale} ${node.id} "${text}"`).toBeLessThanOrEqual(node.w * 0.86);
+      }
+      // AI 구역의 예시 다이어그램도 같은 기준을 지킨다
+      for (const node of AI_NODES) {
+        const text = dict[AI_TEXT[node.id]] as string;
+        expect(text.includes('\n'), `${locale} ai ${node.id}`).toBe(false);
+        expect(approximateLineWidth(text), `${locale} ai ${node.id} "${text}"`).toBeLessThanOrEqual(node.w * 0.86);
       }
     }
   });

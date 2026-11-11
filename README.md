@@ -2,7 +2,7 @@
 
 Chen 표기법의 ER 다이어그램과 EER 다이어그램을 여러 사람이 한 화면에서 동시에 그리는 웹 도구입니다. 대학 데이터베이스 수업의 설계 과제는 Chen 표기법으로 ERD를 그려 제출하는데, 널리 쓰이는 ERD 도구는 대부분 까마귀발 표기법만 지원하고 범용 그림 도구는 이중 마름모나 점선 밑줄 같은 도형을 매번 손으로 만들어야 합니다. 팀원이 각자 그린 그림을 합치는 수고를 없애고 수업에서 배운 표기 그대로 함께 그릴 수 있도록 이 도구를 만들었습니다.
 
-방을 만들면 주소가 하나 생기고 그 주소를 받은 사람은 로그인 없이 이름만 정하고 들어와 같은 다이어그램을 편집합니다. 다른 사람이 옮기는 도형과 마우스 포인터가 바로 보이며 변경 내용은 서버에 자동으로 저장됩니다. 30일 동안 아무도 열지 않은 다이어그램은 서버에서 자동으로 삭제됩니다. 화면은 한국어와 영어를 포함한 10개 언어로 볼 수 있습니다.
+방을 만들면 주소가 하나 생기고 그 주소를 받은 사람은 로그인 없이 이름만 정하고 들어와 같은 다이어그램을 편집합니다. 다른 사람이 옮기는 도형과 마우스 포인터가 바로 보이며 변경 내용은 서버에 자동으로 저장됩니다. 30일 동안 아무도 열지 않은 다이어그램은 서버에서 자동으로 삭제됩니다. 화면은 한국어와 영어를 포함한 10개 언어로 볼 수 있습니다. 다이어그램을 좌표 없는 글로 읽고 쓸 수 있어서 Claude나 ChatGPT 같은 AI에게 그리기와 고치기를 맡길 수도 있습니다.
 
 ## 주요 기능
 
@@ -15,6 +15,78 @@ Chen 표기법의 ER 다이어그램과 EER 다이어그램을 여러 사람이 
 7. 완성한 다이어그램은 PNG와 SVG 그림으로 저장하거나 PNG로 복사해 문서에 바로 붙여 넣을 수 있습니다.
 8. 다이어그램을 JSON 파일로 내려받아 보관하고 나중에 다시 불러올 수 있습니다.
 9. 실행 취소와 다시 실행, 복사와 붙여넣기, 복제를 단축키와 우클릭 메뉴로 사용할 수 있습니다.
+10. AI가 명령줄 도구나 MCP로 다이어그램을 만들고 고치며, 그 과정이 방을 열어 둔 사람의 화면에 실시간으로 보입니다.
+
+## AI와 함께 사용하기
+
+다이어그램은 좌표가 없는 글로 읽고 쓸 수 있습니다. AI가 이 글을 고쳐 방에 반영하면 방을 열어 둔 사람의 화면에 바뀐 내용이 바로 나타납니다. 새로 생긴 도형은 자동으로 배치되고 사람이 옮겨 둔 도형은 제자리에 남습니다. AI를 연결하는 방법은 아래 세 가지이며, 방 화면 상단의 `AI로 편집` 버튼을 누르면 그 방의 주소가 들어간 지시문과 명령을 바로 복사할 수 있습니다.
+
+### 터미널을 쓰는 AI
+
+Claude Code, Cursor, Codex처럼 명령을 실행할 수 있는 AI에게는 `npx -y modelll` 명령을 쓰도록 지시합니다. 이미 있는 방을 고칠 때는 다음과 같이 적고 마지막 줄에 바꿀 내용을 이어서 씁니다.
+
+```text
+이 modelll ER 다이어그램을 고쳐 주세요. 방 주소는 https://modelll.app/r/abc123 입니다.
+먼저 `npx -y modelll syntax`를 실행해 텍스트 형식을 읽어 주세요.
+그다음 `npx -y modelll pull https://modelll.app/r/abc123 -o model.mdl`로 현재 다이어그램을 받아 파일을 고치고, `npx -y modelll push https://modelll.app/r/abc123 model.mdl`로 방에 반영해 주세요.
+바꿀 내용: 교수 엔티티를 추가하고 과목과 강의 관계로 이어 주세요.
+```
+
+명령은 다음과 같습니다. `<방>` 자리에는 방 주소나 방 코드를 적습니다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npx -y modelll new [파일]` | 모델 파일로 새 방을 만들고 방 주소를 출력합니다. 파일을 생략하면 빈 방을 만듭니다. |
+| `npx -y modelll pull <방> [-o 파일]` | 방의 다이어그램을 글로 출력하거나 파일에 씁니다. |
+| `npx -y modelll push <방> <파일>` | 방의 다이어그램을 모델 파일과 같게 만듭니다. 그대로 남는 도형은 자리를 유지하며 `--relayout`을 붙이면 전체를 다시 배치합니다. |
+| `npx -y modelll validate <파일>` | 방에 반영하지 않고 모델 파일의 문법과 표기법만 확인합니다. |
+| `npx -y modelll syntax` | 텍스트 형식의 설명을 출력합니다. |
+| `npx -y modelll mcp` | MCP 서버로 실행합니다. 아래의 Claude Code 등록에서 사용합니다. |
+
+### Claude Code에 MCP 서버로 등록
+
+터미널에서 아래 명령을 한 번 실행합니다.
+
+```bash
+claude mcp add modelll -- npx -y modelll mcp
+```
+
+그 뒤로는 "쇼핑몰 주문 ERD를 그려 주세요"처럼 말하는 것만으로 다이어그램을 만들고 고칩니다. AI가 사용하는 도구는 `create_diagram`, `read_diagram`, `update_diagram`, `validate_diagram`, `diagram_syntax` 다섯 가지입니다.
+
+### claude.ai와 ChatGPT에 연결
+
+터미널 없이 쓰려면 claude.ai나 ChatGPT의 커넥터 설정에 아래 주소를 추가합니다. 도구는 위와 같습니다.
+
+```text
+https://modelll.app/mcp
+```
+
+Claude Code에서도 같은 주소를 등록해 쓸 수 있습니다.
+
+```bash
+claude mcp add --transport http modelll https://modelll.app/mcp
+```
+
+### 텍스트 형식
+
+한 줄에 문장 하나를 적으며 도형의 위치는 적지 않습니다.
+
+```text
+entity Student {
+  id key
+  name
+  phone multi
+}
+entity Course { code key, title }
+relationship Enrolls (Student M total, Course N) { grade }
+```
+
+이 예시는 식별자 `id`와 다중값 속성 `phone`을 가진 `Student` 엔티티, `Course` 엔티티, 두 엔티티를 M 대 N으로 잇고 `Student` 쪽이 전체 참여인 `Enrolls` 관계를 나타냅니다. 이 밖에 `weak entity`와 `identifying relationship`, 재귀 관계에서 역할 이름을 적는 `as`, `specialization Employee disjoint total { Secretary, Engineer }` 형태의 특수화, `name { first, last }` 형태의 복합 속성, `note "…"` 메모를 쓸 수 있습니다. 전체 설명은 `npx -y modelll syntax`로 확인합니다.
+
+### 지시 예시
+
+1. "도서관 대출 관리 ERD를 그려 주세요. 회원은 책을 여러 권 빌릴 수 있고 대출마다 대출일과 반납일이 있습니다."
+2. "https://modelll.app/r/abc123 다이어그램에서 식별자가 없는 엔티티를 찾아 알맞은 키 속성을 추가해 주세요."
 
 ## 지원 표기법
 
@@ -91,6 +163,8 @@ src/
     pages/         첫 화면과 방 화면
     state/         화면 상태
   server/          HTTP와 웹소켓 서버, 파일 저장
+  cli/             명령줄 도구
+  mcp/             AI가 사용하는 MCP 도구
 e2e/               브라우저 테스트
 deploy/            서버 설정 스크립트와 배포 스크립트, 백업 스크립트, Caddy 설정
 .github/workflows/ CI와 배포 워크플로
