@@ -141,6 +141,25 @@ describe('이동', () => {
     g.end(at(110, 10));
     expect(room.nodes.get('a')!.x).toBe(50);
   });
+
+  it('멀리 끌면 다른 도형에 맞춰 붙고, 조금만 끌면 맞춤 없이 끈 만큼만 움직인다', () => {
+    // a(0,0)와 b(300,0)는 위쪽이 같은 높이다. 붙은 자리에서 조금 내리는 상황을 본다
+    ui().setSnapEnabled(true);
+    ui().setSelection(['a']);
+    const far = startMove(ctx, at(10, 10), 'a')!;
+    // 가로로 멀리, 세로로 3px: 세로는 c의 높이에 붙어 0으로 돌아간다
+    far.move(at(210, 13));
+    far.end(at(210, 13));
+    expect(room.nodes.get('a')).toMatchObject({ x: 200, y: 0 });
+    expect(ui().guides).toEqual([]);
+
+    // 붙어 있는 자리에서 4px만 내린다: 맞춤에 붙잡히지 않고 그대로 4px 내려간다
+    const near = startMove(ctx, at(210, 10), 'a')!;
+    near.move(at(210, 14));
+    expect(ui().guides).toEqual([]);
+    near.end(at(210, 14));
+    expect(room.nodes.get('a')).toMatchObject({ x: 200, y: 4 });
+  });
 });
 
 describe('크기 조절', () => {

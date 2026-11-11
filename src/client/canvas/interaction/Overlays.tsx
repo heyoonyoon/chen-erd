@@ -88,7 +88,7 @@ function ConnectDots({ node, zoom }: { node: ErdNode; zoom: number }) {
     <g>
       {dots.map((d) => (
         <g key={d.side} className="canvas-connect-dot" data-connect-from={node.id} data-side={d.side}>
-          <circle className="canvas-connect-dot-hit" cx={d.x} cy={d.y} r={(CONNECT_DOT_RADIUS + 5) / zoom} />
+          <circle className="canvas-connect-dot-hit" cx={d.x} cy={d.y} r={(CONNECT_DOT_RADIUS + 4) / zoom} />
           <circle className="canvas-connect-dot-mark" cx={d.x} cy={d.y} r={CONNECT_DOT_RADIUS / zoom} />
         </g>
       ))}
@@ -145,10 +145,11 @@ export const SelectionLayer = memo(function SelectionLayer() {
           height={group.h + pad * 6}
         />
       )}
+      {showHandles && single && <ResizeHandles node={single} zoom={zoom} />}
+      {/* 연결 점은 크기 조절 손잡이 바로 바깥에 있다. 손잡이보다 위에 그려야 점을 눌렀는데 크기가 바뀌는 일이 없다 */}
       {dotNodes.map((n) => (
         <ConnectDots key={n.id} node={n} zoom={zoom} />
       ))}
-      {showHandles && single && <ResizeHandles node={single} zoom={zoom} />}
     </g>
   );
 });

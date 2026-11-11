@@ -8,7 +8,7 @@ import { ui } from '../../state/ui';
 import { visibleWorldRect } from '../coords';
 import { computeSnap } from '../snap';
 import { beginUndoGroup, frameThrottle, isAdditive, worldOf, type Gesture, type GestureCtx, type PointerSnap } from './gesture';
-import { SNAP_DISTANCE, exceedsThreshold } from './logic';
+import { NUDGE_FREE_DISTANCE, SNAP_DISTANCE, exceedsThreshold } from './logic';
 import { setCanvasLocal } from './store';
 
 interface DragState {
@@ -69,7 +69,9 @@ export function startMove(ctx: GestureCtx, down: PointerSnap, nodeId: string): G
     const w = worldOf(ctx, last);
     let dx = w.x - startWorld.x;
     let dy = w.y - startWorld.y;
-    if (ui().snapEnabled && !last.altKey) {
+    // 조금만 끄는 것은 자리를 미세하게 고치려는 것이다. 이때 맞춤이 걸리면 붙은 자리에서 떨어지지 않는다
+    const nudging = !exceedsThreshold(down.clientX, down.clientY, last.clientX, last.clientY, NUDGE_FREE_DISTANCE);
+    if (ui().snapEnabled && !last.altKey && !nudging) {
       const moved = { x: d.bounds.x + dx, y: d.bounds.y + dy, w: d.bounds.w, h: d.bounds.h };
       const snap = computeSnap(moved, d.others, SNAP_DISTANCE / ui().viewport.zoom);
       dx += snap.dx;

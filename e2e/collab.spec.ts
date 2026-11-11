@@ -138,3 +138,57 @@ test('처음 들어오면 이름을 묻고, 입력한 이름이 다른 사람에
   await ctx.close();
   await a.ctx.close();
 });
+
+test('끄는 도중 브라우저의 포인터 붙잡기가 풀려도 연결과 이동이 끝까지 된다', async ({ browser }) => {
+  const a = await join(browser, '철수', '#E5484D');
+  await a.page.goto('/');
+  await a.page.getByTestId('create-room').click();
+  await a.page.waitForURL(/\/r\/[a-z0-9]+$/);
+  await ready(a.page);
+  await place(a.page, 'entity', 640, 300, '사용자');
+  await place(a.page, 'attribute', 360, 300, '생년월일');
+  const page = a.page;
+  const svg = page.getByTestId('canvas-svg');
+  // 확장 프로그램 등이 조작 중에 붙잡기를 풀어 버리는 상황을 만든다
+  const loseCapture = () => svg.evaluate((el) => (el as SVGSVGElement).releasePointerCapture(1));
+  const attr = page.locator('[data-node-id]', { hasText: '생년월일' });
+  const entity = page.locator('[data-node-id]', { hasText: '사용자' });
+
+  // 속성을 고른 뒤 오른쪽 연결 점에서 엔티티로 끈다
+  const box = (await attr.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const dot = (await page.locator('[data-connect-from][data-side="right"]').first().boundingBox())!;
+  const ent = (await entity.boundingBox())!;
+  await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2, { steps: 3 });
+  await page.mouse.down();
+  await page.mouse.move(ent.x + 30, ent.y + 30, { steps: 6 });
+  await loseCapture();
+  await page.mouse.move(ent.x + 34, ent.y + 32, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.locator('[data-edge-id]')).toHaveCount(1);
+
+  // 속성을 끌어 옮기는 도중에도 마찬가지다. 원래 자리로 돌아가지 않는다
+  const before = (await attr.boundingBox())!;
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2, { steps: 2 });
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2 + 60, { steps: 4 });
+  await loseCapture();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2 + 140, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => (await attr.boundingBox())!.y).toBeGreaterThan(before.y + 120);
+  await expect(page.locator('[data-edge-id]')).toHaveCount(1);
+
+  // 고른 도형의 연결 점은 크기 조절 손잡이보다 위에 있어서, 점을 누르면 크기가 바뀌지 않고 선이 시작된다
+  const sized = (await attr.boundingBox())!;
+  await page.mouse.click(sized.x + sized.width / 2, sized.y + sized.height / 2);
+  const dot2 = (await page.locator('[data-connect-from][data-side="left"]').first().boundingBox())!;
+  // 점의 안쪽 가장자리(손잡이와 가장 가까운 쪽)를 누른다
+  await page.mouse.move(dot2.x + dot2.width - 5, dot2.y + dot2.height / 2, { steps: 2 });
+  await page.mouse.down();
+  await page.mouse.move(dot2.x - 60, dot2.y + 4, { steps: 4 });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect(Math.round((await attr.boundingBox())!.width)).toBe(Math.round(sized.width));
+
+  await a.ctx.close();
+});

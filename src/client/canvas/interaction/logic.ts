@@ -18,6 +18,8 @@ export const ANCHOR_SNAP_DISTANCE = 14;
 export const EDGE_END_SIZE = 9;
 /** 정렬 맞춤이 걸리는 거리(화면 px) */
 export const SNAP_DISTANCE = 6;
+/** 누른 자리에서 이만큼(화면 px) 안으로 끄는 동안에는 정렬 맞춤을 걸지 않는다(미세 이동) */
+export const NUDGE_FREE_DISTANCE = 12;
 
 export function exceedsThreshold(ax: number, ay: number, bx: number, by: number, threshold = DRAG_THRESHOLD): boolean {
   return Math.hypot(bx - ax, by - ay) >= threshold;

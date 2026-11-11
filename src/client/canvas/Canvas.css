@@ -2,6 +2,8 @@
 .canvas-root { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: var(--bg-canvas); user-select: none; -webkit-user-select: none; }
 .canvas-svg { display: block; width: 100%; height: 100%; outline: none; }
 .canvas-svg text { user-select: none; -webkit-user-select: none; }
+/* 도형이나 글자를 브라우저가 끌어다 놓기로 가져가면 조작이 끊긴다 */
+.canvas-root, .canvas-root * { -webkit-user-drag: none; }
 
 /* 커서: 선택 도구에서는 대상마다 다르고, 그 밖에는 캔버스 전체가 .canvas-root에 지정한 커서를 따른다 */
 .canvas-root[data-cursor='select'] .canvas-svg [data-node-id] { cursor: move; }

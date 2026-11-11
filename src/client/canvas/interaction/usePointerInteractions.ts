@@ -107,8 +107,12 @@ export interface CanvasPointerHandlers {
 interface Active {
   gesture: Gesture;
   pointerId: number;
+  /** 마우스인지. 마우스 조작은 중간에 끊겨도 마지막 위치에서 마무리한다 */
+  mouse: boolean;
   svg: SVGSVGElement;
   last: PointerSnap;
+  /** 붙잡기가 풀린 뒤 창 전체에서 포인터를 따라가고 있으면 그 구독을 끊는 함수 */
+  unfollow: (() => void) | null;
 }
 
 export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): CanvasPointerHandlers {
@@ -130,7 +134,7 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
     const start = (e: ReactPointerEvent<SVGSVGElement>, gesture: Gesture | null): void => {
       if (!gesture) return;
       const svg = e.currentTarget;
-      activeRef.current = { gesture, pointerId: e.pointerId, svg, last: snapOf(e) };
+      activeRef.current = { gesture, pointerId: e.pointerId, mouse: e.pointerType === 'mouse', svg, last: snapOf(e), unfollow: null };
       try {
         svg.setPointerCapture(e.pointerId);
       } catch {
@@ -144,6 +148,7 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
       if (!active) return;
       activeRef.current = null;
       window.removeEventListener('keydown', onKeyDown, true);
+      active.unfollow?.();
       try {
         if (how === 'end') active.gesture.end(p ?? active.last);
         else active.gesture.cancel();
@@ -157,6 +162,47 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
       }
     };
     stopRef.current = stop;
+
+    /**
+     * 브라우저가 조작을 끊었을 때(pointercancel). 마우스는 사용자가 취소한 것이 아니므로 마지막 위치에서 마무리한다.
+     * 되돌리면 "끌었는데 안 옮겨졌다", "이었는데 선이 안 생겼다"가 된다. 터치는 화면 넘기기 등으로 넘어간 것이라 취소한다.
+     */
+    const interrupt = (): void => {
+      const active = activeRef.current;
+      if (!active) return;
+      if (active.mouse) stop('end', active.last);
+      else stop('cancel');
+    };
+
+    /**
+     * 포인터 붙잡기가 풀려도 조작을 이어 간다. 붙잡기는 확장 프로그램이나 브라우저 사정으로 조작 중에 풀릴 수 있고,
+     * 그 뒤의 이벤트는 캔버스가 아니라 마우스 아래 요소로 간다. 그래서 창 전체에서 같은 포인터를 따라간다.
+     */
+    const follow = (active: Active): void => {
+      if (active.unfollow) return;
+      const mine = (e: PointerEvent): boolean => activeRef.current === active && e.pointerId === active.pointerId;
+      const onMove = (e: PointerEvent): void => {
+        if (!mine(e)) return;
+        active.last = snapOf(e);
+        // 버튼을 뗀 것을 놓쳤으면 여기서 마무리한다
+        if (active.mouse && e.buttons === 0) stop('end', active.last);
+        else active.gesture.move(active.last);
+      };
+      const onUp = (e: PointerEvent): void => {
+        if (mine(e)) stop('end', snapOf(e));
+      };
+      const onCancel = (e: PointerEvent): void => {
+        if (mine(e)) interrupt();
+      };
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
+      active.unfollow = () => {
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerup', onUp, true);
+        window.removeEventListener('pointercancel', onCancel, true);
+      };
+    };
 
     /** 조작이 없을 때의 hover 갱신 */
     const hover = (e: ReactPointerEvent<SVGSVGElement>): void => {
@@ -235,8 +281,14 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
       onPointerMove(e) {
         const active = activeRef.current;
         if (active) {
-          if (e.pointerId !== active.pointerId) return;
+          // 창 전체에서 따라가는 중이면 거기서 처리한다(두 번 처리하지 않는다)
+          if (e.pointerId !== active.pointerId || active.unfollow) return;
           active.last = snapOf(e);
+          // 버튼을 뗀 것을 놓쳤으면(창 밖에서 뗀 경우 등) 여기서 마무리한다
+          if (active.mouse && e.buttons === 0) {
+            stop('end', active.last);
+            return;
+          }
           active.gesture.move(active.last);
           // 도형 놓기 도구는 누르고 있는 동안에도 미리보기가 따라온다
           if (presetOfTool(ui().tool) && canvasLocal().mode === 'idle') hover(e);
@@ -248,21 +300,22 @@ export function usePointerInteractions(rootRef: RefObject<HTMLElement | null>): 
 
       onPointerUp(e) {
         const active = activeRef.current;
-        if (!active || e.pointerId !== active.pointerId) return;
+        if (!active || e.pointerId !== active.pointerId || active.unfollow) return;
         stop('end', snapOf(e));
       },
 
       onPointerCancel(e) {
         const active = activeRef.current;
-        if (!active || e.pointerId !== active.pointerId) return;
-        stop('cancel');
+        if (!active || e.pointerId !== active.pointerId || active.unfollow) return;
+        interrupt();
       },
 
       onLostPointerCapture(e) {
-        // 정상 종료라면 pointerup에서 이미 끝났다. 남아 있으면 붙잡기가 풀린 것이므로 취소한다
+        // 정상 종료라면 pointerup에서 이미 끝났다. 남아 있으면 조작 중에 붙잡기가 풀린 것이다.
+        // 취소하지 않고 창 전체에서 포인터를 따라가며 이어 간다.
         const active = activeRef.current;
         if (!active || e.pointerId !== active.pointerId) return;
-        stop('cancel');
+        follow(active);
       },
 
       onPointerLeave() {
