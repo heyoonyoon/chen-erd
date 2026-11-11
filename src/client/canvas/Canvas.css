@@ -30,7 +30,8 @@
 .canvas-draft-target { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .canvas-draft-target.is-valid { stroke: var(--accent); fill: rgba(13, 110, 253, 0.06); }
 .canvas-draft-target.is-invalid { stroke: var(--danger); fill: rgba(220, 53, 69, 0.06); }
-.canvas-connect-reason { position: absolute; z-index: 5; max-width: 260px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--danger); color: #fff; font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
+/* 긴 안내는 상자 밖으로 삐져나가지 않고 줄을 바꾼다. width: max-content는 화면 가장자리 근처에서 상자가 좁게 눌리는 것을 막는다 */
+.canvas-connect-reason { position: absolute; z-index: 5; width: max-content; max-width: 280px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--danger); color: #fff; font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); pointer-events: none; word-break: keep-all; overflow-wrap: anywhere; }
 
 /* 고정점(변 가운데, 마름모 꼭짓점). 연결 중인 대상과 끝점을 옮기는 도형에 보인다 */
 .canvas-anchor { fill: #fff; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }

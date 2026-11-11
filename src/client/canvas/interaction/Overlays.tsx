@@ -235,7 +235,7 @@ export const EdgeEndsLayer = memo(function EdgeEndsLayer() {
   const source = edge ? nodeMap.get(edge.source) : undefined;
   const target = edge ? nodeMap.get(edge.target) : undefined;
   const geometry = useMemo(
-    () => (edge && source && target ? computeEdgeGeometry(edge, source, target, sibling?.index ?? 0, sibling?.count ?? 1) : null),
+    () => (edge && source && target ? computeEdgeGeometry(edge, source, target, sibling?.index ?? 0, sibling?.count ?? 1, sibling?.pair ?? 1) : null),
     [edge, source, target, sibling],
   );
 
@@ -283,8 +283,10 @@ export const ConnectReason = memo(function ConnectReason() {
   const viewport = useUi((s) => s.viewport);
   if (!reason || !draft) return null;
   const p = worldToScreen(viewport, draft.to);
+  // 화면 오른쪽 끝에서는 말풍선(최대 280px)이 잘리지 않게 왼쪽으로 당긴다
+  const left = Math.max(8, Math.min(p.x + 14, window.innerWidth - 296));
   return (
-    <div className="canvas-connect-reason" role="status" style={{ left: p.x + 14, top: p.y + 18 }}>
+    <div className="canvas-connect-reason" role="status" style={{ left, top: p.y + 18 }}>
       {reason}
     </div>
   );

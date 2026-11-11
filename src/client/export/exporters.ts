@@ -62,8 +62,8 @@ function edgeExtents(nodes: ErdNode[], edges: ErdEdge[]): Rect[] {
     const t = byId.get(e.target);
     if (!s || !t) continue;
     try {
-      const sib = siblings.get(e.id) ?? { index: 0, count: 1 };
-      const g = computeEdgeGeometry(e, s, t, sib.index, sib.count);
+      const sib = siblings.get(e.id) ?? { index: 0, count: 1, pair: 1 };
+      const g = computeEdgeGeometry(e, s, t, sib.index, sib.count, sib.pair);
       // 선 자체(휘어 그린 선은 노드 범위 밖으로 나갈 수 있다)
       const line = STYLE.doubleGap + STYLE.strokeWidth;
       // 꺾은선은 도형을 돌아가느라 노드 범위 밖으로 나갈 수 있으므로 지나는 점을 모두 넣는다

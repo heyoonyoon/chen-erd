@@ -416,24 +416,39 @@ describe('선이 붙는 위치와 선 모양', () => {
     expect(sectionTitles()).toEqual(['카디널리티', '선 종류', '붙는 위치', '선 모양']);
   });
 
-  it('선 모양: 자동일 때 지금 그려지는 모양을 알려 준다', () => {
+  it('선 모양: 기본은 직선이고 꺾은선은 직접 고른다', () => {
     setup(nodes(), [e('e1', '학생', '수강'), e('e2', '학생', '나이')], ['e1']);
-    expect(screen.getByTestId('inspector-shape-auto').className).toContain('is-active');
-    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+    expect(screen.queryByTestId('inspector-shape-auto')).toBeNull();
+    expect(screen.getByTestId('inspector-shape-straight').className).toContain('is-active');
 
-    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
-    expect(yEdge('e1').get('shape')).toBe('straight');
-    expect(screen.queryByTestId('inspector-shape-hint')).toBeNull();
     fireEvent.click(screen.getByTestId('inspector-shape-elbow'));
     expect(yEdge('e1').get('shape')).toBe('elbow');
-    fireEvent.click(screen.getByTestId('inspector-shape-auto'));
+    expect(screen.getByTestId('inspector-shape-elbow').className).toContain('is-active');
+    // 직선으로 되돌리면 문서에서 모양을 지운다
+    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
     expect(yEdge('e1').has('shape')).toBe(false);
 
-    // 속성 선은 자동이면 직선, 면을 하나라도 정하면 꺾은선
+    // 붙는 면을 정해도 직선이다
     act(() => useUi.getState().setSelection(['e2']));
-    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 직선으로 그립니다.');
     fireEvent.click(screen.getByTestId('inspector-source-side-bottom'));
-    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+    expect(yEdge('e2').has('shape')).toBe(false);
+    expect(screen.getByTestId('inspector-shape-straight').className).toContain('is-active');
+  });
+
+  it('선 모양: 재귀 관계의 선은 기본이 꺾은선이고 직선은 직접 고른다', () => {
+    setup(nodes(), [e('e1', '학생', '수강', { sourceSide: 'bottom', targetSide: 'top' }), e('e2', '학생', '수강')], ['e2']);
+    expect(screen.getByTestId('inspector-shape-elbow').className).toContain('is-active');
+
+    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
+    expect(yEdge('e2').get('shape')).toBe('straight');
+    expect(screen.getByTestId('inspector-shape-straight').className).toContain('is-active');
+    // 기본 모양으로 되돌리면 문서에서 모양을 지운다
+    fireEvent.click(screen.getByTestId('inspector-shape-elbow'));
+    expect(yEdge('e2').has('shape')).toBe(false);
+
+    // 면을 정한 쪽 선도 같은 기본을 따른다
+    act(() => useUi.getState().setSelection(['e1']));
+    expect(screen.getByTestId('inspector-shape-elbow').className).toContain('is-active');
   });
 
   it('붙는 위치 초기화: 양쪽 면과 모양을 한 번에 자동으로', () => {
@@ -454,7 +469,7 @@ describe('선이 붙는 위치와 선 모양', () => {
   });
 
   it('여러 선: 선 모양만 한꺼번에 바꾸고 붙는 위치는 보여 주지 않는다', () => {
-    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '수강', '과목', { shape: 'straight' }), e('e3', '학생', '나이')], ['e1', 'e2']);
+    setup(nodes(), [e('e1', '학생', '수강'), e('e2', '수강', '과목', { shape: 'elbow' }), e('e3', '학생', '나이')], ['e1', 'e2']);
     expect(screen.queryByTestId('inspector-source-side-auto')).toBeNull();
     expect(screen.queryByTestId('inspector-anchor-reset')).toBeNull();
     // 값이 섞여 있으면 아무것도 강조하지 않는다
@@ -463,15 +478,14 @@ describe('선이 붙는 위치와 선 모양', () => {
     expect([yEdge('e1').get('shape'), yEdge('e2').get('shape')]).toEqual(['elbow', 'elbow']);
     expect(yEdge('e3').has('shape')).toBe(false);
     expect(room.undo.undoStack).toHaveLength(1);
-    fireEvent.click(screen.getByTestId('inspector-shape-auto'));
+    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
     expect([yEdge('e1').has('shape'), yEdge('e2').has('shape')]).toEqual([false, false]);
-    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 꺾은선으로 그립니다.');
+    expect(screen.getByTestId('inspector-shape-straight').className).toContain('is-active');
 
     // 성격이 다른 선이 섞여도 선 모양은 바꿀 수 있다
     act(() => useUi.getState().setSelection(['e1', 'e2', 'e3', '학생']));
     expect(screen.queryByTestId('inspector-line-double')).toBeNull();
-    expect(screen.getByTestId('inspector-shape-hint').textContent).toBe('지금은 선마다 다른 모양으로 그립니다.');
-    fireEvent.click(screen.getByTestId('inspector-shape-straight'));
-    expect(['e1', 'e2', 'e3'].map((id) => yEdge(id).get('shape'))).toEqual(['straight', 'straight', 'straight']);
+    fireEvent.click(screen.getByTestId('inspector-shape-elbow'));
+    expect(['e1', 'e2', 'e3'].map((id) => yEdge(id).get('shape'))).toEqual(['elbow', 'elbow', 'elbow']);
   });
 });

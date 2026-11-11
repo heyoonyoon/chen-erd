@@ -63,8 +63,8 @@ export interface ErdEdge {
   /** 선이 target 도형의 어느 면(꼭짓점)에 붙는지. 없으면 자동으로 고른다. */
   targetSide?: Side;
   /**
-   * 선 모양. 없으면 자동: 엔티티와 관계 사이의 선은 elbow(마름모 꼭짓점에 수직/수평으로 붙는다),
-   * 그 외(속성 선, 특수화 선)는 straight. 단, 면이 하나라도 지정된 선은 자동일 때 elbow로 본다.
+   * 선 모양. 없으면 straight로 그린다. 붙는 면이 지정된 직선은 그 면의 고정점(마름모는 꼭짓점)끼리 곧게 잇는다.
+   * elbow는 사용자가 직접 골랐을 때만 쓴다.
    */
   shape?: EdgeShapeKind;
 }

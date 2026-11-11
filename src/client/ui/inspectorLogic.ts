@@ -11,6 +11,7 @@ import {
   type KeyType,
   type PresetId,
 } from '../../shared/types';
+import { edgeShapeOf } from '../../shared/geometry';
 import type { NodePatch } from '../collab/docOps';
 
 export interface NodePatchEntry {
@@ -173,18 +174,21 @@ export function edgeNature(source: ErdNode | undefined, target: ErdNode | undefi
 }
 
 /**
- * 선 모양이 자동(shape 없음)일 때 실제로 그려지는 모양.
- * 규칙: 직접 고른 모양이 있으면 그 모양. 없으면 붙는 면이 하나라도 지정된 선과
- * 엔티티와 관계 사이의 선은 꺾은선, 그 밖의 선(속성 선, 특수화 선)은 직선.
+ * 모양을 고르지 않은 선의 기본 모양. 재귀 관계(같은 엔티티와 관계 사이에 선이 둘 이상)의 선은 꺾은선, 그 밖은 직선.
+ * pairCount는 같은 두 도형을 잇는 선의 수(geometry.ts의 siblingInfo가 주는 pair).
  */
+export function defaultEdgeShape(source: ErdNode | undefined, target: ErdNode | undefined, pairCount = 1): EdgeShapeKind {
+  return edgeShapeOf({}, source, target, pairCount);
+}
+
+/** 실제로 그려지는 선 모양. 직접 고른 모양이 있으면 그 모양, 없으면 기본 모양. */
 export function resolveEdgeShape(
-  edge: Pick<ErdEdge, 'shape' | 'sourceSide' | 'targetSide'>,
-  source: ErdNode | undefined,
-  target: ErdNode | undefined,
+  edge: Pick<ErdEdge, 'shape'>,
+  source?: ErdNode,
+  target?: ErdNode,
+  pairCount = 1,
 ): EdgeShapeKind {
-  if (edge.shape === 'straight' || edge.shape === 'elbow') return edge.shape;
-  if (edge.sourceSide || edge.targetSide) return 'elbow';
-  return edgeNature(source, target) === 'entity-relationship' ? 'elbow' : 'straight';
+  return edgeShapeOf(edge, source, target, pairCount);
 }
 
 /** 여러 값이 모두 같으면 그 값, 섞여 있거나 비어 있으면 null. */

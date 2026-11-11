@@ -34,16 +34,18 @@ interface EdgeViewProps {
   target: ErdNode;
   siblingIndex: number;
   siblingCount: number;
+  /** 같은 두 도형을 잇는 선의 수. 재귀 관계의 기본 모양을 정한다 */
+  pairCount: number;
   selected: boolean;
   hovered: boolean;
   highlighted: boolean;
 }
 
 /** 엣지 좌표는 엣지나 양 끝 노드의 참조가 바뀔 때만 다시 계산한다. */
-const EdgeView = memo(function EdgeView({ edge, source, target, siblingIndex, siblingCount, selected, hovered, highlighted }: EdgeViewProps) {
+const EdgeView = memo(function EdgeView({ edge, source, target, siblingIndex, siblingCount, pairCount, selected, hovered, highlighted }: EdgeViewProps) {
   const geometry = useMemo(
-    () => computeEdgeGeometry(edge, source, target, siblingIndex, siblingCount),
-    [edge, source, target, siblingIndex, siblingCount],
+    () => computeEdgeGeometry(edge, source, target, siblingIndex, siblingCount, pairCount),
+    [edge, source, target, siblingIndex, siblingCount, pairCount],
   );
   return <EdgeShape edge={edge} geometry={geometry} selected={selected} hovered={hovered} highlighted={highlighted} />;
 });
@@ -72,6 +74,7 @@ const EdgesLayer = memo(function EdgesLayer() {
             target={target}
             siblingIndex={sib?.index ?? 0}
             siblingCount={sib?.count ?? 1}
+            pairCount={sib?.pair ?? 1}
             selected={selected.has(e.id)}
             hovered={hoveredId === e.id}
             highlighted={highlighted.has(e.id)}

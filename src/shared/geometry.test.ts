@@ -30,9 +30,13 @@ function node(id: string, kind: NodeKind, x: number, y: number, w: number, h: nu
 function edge(id: string, source: string, target: string, extra: Partial<ErdEdge> = {}): ErdEdge {
   return { id, source, target, double: false, label: '', role: '', ...extra };
 }
-/** 직선 모양을 명시한 엣지(엔티티와 관계 사이는 자동이면 꺾은선이다) */
+/** 직선 모양을 명시한 엣지 */
 function line(id: string, source: string, target: string, extra: Partial<ErdEdge> = {}): ErdEdge {
   return edge(id, source, target, { shape: 'straight', ...extra });
+}
+/** 꺾은선을 고른 엣지. 모양을 고르지 않은 선은 직선으로 그려진다 */
+function elbow(id: string, source: string, target: string, extra: Partial<ErdEdge> = {}): ErdEdge {
+  return edge(id, source, target, { shape: 'elbow', ...extra });
 }
 /** path d 문자열에서 좌표를 순서대로 뽑는다 */
 function coords(d: string): Point[] {
@@ -197,12 +201,12 @@ describe('computeEdgeGeometry: 직선', () => {
     const attr = node('q', 'attribute', 260, 180, 120, 50);
     const spec = node('s', 'spec', 33, 200, 34, 34);
     const g = computeEdgeGeometry(edge('x', 'a', 'q'), e1, attr);
-    expect(edgeShapeOf(edge('x', 'a', 'q'), e1, attr)).toBe('straight');
+    expect(edgeShapeOf(edge('x', 'a', 'q'))).toBe('straight');
     expectPoint(g.start, boundaryPoint(e1, nodeCenter(attr)).x, boundaryPoint(e1, nodeCenter(attr)).y);
     expectPoint(g.end, boundaryPoint(attr, nodeCenter(e1)).x, boundaryPoint(attr, nodeCenter(e1)).y);
     expect(g.points).toHaveLength(2);
     expect(g.control).toBeNull();
-    expect(edgeShapeOf(edge('x', 'a', 's'), e1, spec)).toBe('straight');
+    expect(edgeShapeOf(edge('x', 'a', 's'))).toBe('straight');
     // 속성 선이 겹치면 예전처럼 곡선으로 벌어진다
     const curved = computeEdgeGeometry(edge('x', 'a', 'q'), e1, attr, 0, 2);
     expect(curved.control).not.toBeNull();
@@ -397,10 +401,10 @@ describe('siblingInfo', () => {
       edge('e2', 'a', 'c'),
       edge('e0', 'a', 'b'),
     ]);
-    expect(info.get('e0')).toEqual({ index: 0, count: 3 });
-    expect(info.get('e1')).toEqual({ index: 1, count: 3 });
-    expect(info.get('e3')).toEqual({ index: 2, count: 3 });
-    expect(info.get('e2')).toEqual({ index: 0, count: 1 });
+    expect(info.get('e0')).toEqual({ index: 0, count: 3, pair: 3 });
+    expect(info.get('e1')).toEqual({ index: 1, count: 3, pair: 3 });
+    expect(info.get('e3')).toEqual({ index: 2, count: 3, pair: 3 });
+    expect(info.get('e2')).toEqual({ index: 0, count: 1, pair: 1 });
     expect(info.size).toBe(4);
   });
   it('입력 순서가 달라도 결과가 같다', () => {
@@ -410,15 +414,15 @@ describe('siblingInfo', () => {
   it('빈 목록', () => {
     expect(siblingInfo([]).size).toBe(0);
   });
-  it('면이 지정된 엣지는 순번에서 뺀다', () => {
+  it('면이 지정된 엣지는 순번에서 빼지만, 같은 두 도형을 잇는 선의 수(pair)에는 센다', () => {
     const info = siblingInfo([
       edge('e0', 'a', 'b', { sourceSide: 'right', targetSide: 'right' }),
       edge('e1', 'a', 'b'),
       edge('e2', 'b', 'a'),
     ]);
-    expect(info.get('e0')).toEqual({ index: 0, count: 1 });
-    expect(info.get('e1')).toEqual({ index: 0, count: 2 });
-    expect(info.get('e2')).toEqual({ index: 1, count: 2 });
+    expect(info.get('e0')).toEqual({ index: 0, count: 1, pair: 3 });
+    expect(info.get('e1')).toEqual({ index: 0, count: 2, pair: 3 });
+    expect(info.get('e2')).toEqual({ index: 1, count: 2, pair: 3 });
   });
 });
 
@@ -510,23 +514,64 @@ function backtracks(pts: Point[]): boolean {
 }
 
 describe('edgeShapeOf', () => {
-  const ent = node('a', 'entity', 0, 0, 140, 60);
-  const rel = node('b', 'relationship', 0, 160, 140, 80);
-  const attr = node('c', 'attribute', 300, 0, 120, 50);
-  it('엔티티와 관계 사이는 꺾은선, 그 외는 직선', () => {
-    expect(edgeShapeOf(edge('x', 'a', 'b'), ent, rel)).toBe('elbow');
-    expect(edgeShapeOf(edge('x', 'b', 'a'), rel, ent)).toBe('elbow');
-    expect(edgeShapeOf(edge('x', 'a', 'c'), ent, attr)).toBe('straight');
-    expect(edgeShapeOf(edge('x', 'b', 'c'), rel, attr)).toBe('straight');
+  it('모양을 고르지 않은 선은 어떤 도형 사이든 직선이다', () => {
+    expect(edgeShapeOf(edge('x', 'a', 'b'))).toBe('straight');
+    expect(edgeShapeOf(edge('x', 'a', 'c', { sourceSide: 'right' }))).toBe('straight');
+    expect(edgeShapeOf(edge('x', 'a', 'c', { sourceSide: 'top', targetSide: 'left' }))).toBe('straight');
   });
-  it('면이 하나라도 지정되면 자동일 때 꺾은선', () => {
-    expect(edgeShapeOf(edge('x', 'a', 'c', { sourceSide: 'right' }), ent, attr)).toBe('elbow');
-    expect(edgeShapeOf(edge('x', 'a', 'c', { targetSide: 'left' }), ent, attr)).toBe('elbow');
+  it('직접 고른 모양이 가장 먼저다', () => {
+    expect(edgeShapeOf(edge('x', 'a', 'b', { shape: 'straight' }))).toBe('straight');
+    expect(edgeShapeOf(edge('x', 'a', 'c', { shape: 'elbow' }))).toBe('elbow');
   });
-  it('shape가 있으면 그대로', () => {
-    expect(edgeShapeOf(edge('x', 'a', 'b', { shape: 'straight' }), ent, rel)).toBe('straight');
-    expect(edgeShapeOf(edge('x', 'a', 'c', { shape: 'elbow' }), ent, attr)).toBe('elbow');
-    expect(edgeShapeOf(edge('x', 'a', 'c', { shape: 'straight', sourceSide: 'top' }), ent, attr)).toBe('straight');
+  it('재귀 관계의 선은 고르지 않으면 꺾은선이다', () => {
+    const ent = node('a', 'entity', 0, 0, 140, 60);
+    const rel = node('b', 'relationship', 300, 0, 140, 80);
+    const attr = node('c', 'attribute', 0, 200, 120, 50);
+    expect(edgeShapeOf(edge('x', 'a', 'b'), ent, rel, 2)).toBe('elbow');
+    expect(edgeShapeOf(edge('x', 'b', 'a'), rel, ent, 2)).toBe('elbow');
+    // 선이 하나뿐이면 직선
+    expect(edgeShapeOf(edge('x', 'a', 'b'), ent, rel, 1)).toBe('straight');
+    // 직선을 직접 고르면 재귀 관계여도 직선
+    expect(edgeShapeOf(edge('x', 'a', 'b', { shape: 'straight' }), ent, rel, 2)).toBe('straight');
+    // 엔티티와 관계 사이가 아니면 겹쳐도 직선(휘어서 벌어진다)
+    expect(edgeShapeOf(edge('x', 'a', 'c'), ent, attr, 2)).toBe('straight');
+  });
+  it('재귀 관계: 면을 정한 선과 정하지 않은 선이 섞여도 둘 다 꺾은선으로 그린다', () => {
+    const emp = node('emp', 'entity', 680, 160, 200, 100);
+    const mng = node('mng', 'relationship', 720, 330, 140, 80);
+    const edges = [
+      edge('e1', 'emp', 'mng', { sourceSide: 'bottom', targetSide: 'top' }),
+      edge('e2', 'emp', 'mng', { sourceSide: 'right', targetSide: 'right' }),
+    ];
+    const info = siblingInfo(edges);
+    const [g1, g2] = edges.map((e) => computeEdgeGeometry(e, emp, mng, info.get(e.id)!.index, info.get(e.id)!.count, info.get(e.id)!.pair));
+    // 첫 선은 꼭짓점과 곧게 만나고, 둘째 선은 오른쪽으로 돌아간다
+    expect(g1.points).toHaveLength(2);
+    expect(g2.points.length).toBeGreaterThan(2);
+    for (let i = 1; i < g2.points.length; i++) {
+      const p = g2.points[i - 1];
+      const q = g2.points[i];
+      expect(p.x === q.x || p.y === q.y).toBe(true);
+    }
+    // 하나를 지우면 남은 선은 직선으로 돌아간다
+    const alone = siblingInfo([edges[1]]).get('e2')!;
+    expect(computeEdgeGeometry(edges[1], emp, mng, alone.index, alone.count, alone.pair).points).toHaveLength(2);
+  });
+  it('엔티티와 관계 사이의 선도 고르지 않으면 두 중심을 잇는 직선으로 그린다', () => {
+    const ent = node('a', 'entity', 0, 0, 140, 60);
+    const rel = node('b', 'relationship', 300, 200, 140, 80);
+    const g = computeEdgeGeometry(edge('x', 'a', 'b'), ent, rel);
+    expect(g.points).toHaveLength(2);
+    expectPoint(g.start, boundaryPoint(ent, nodeCenter(rel)).x, boundaryPoint(ent, nodeCenter(rel)).y);
+    expectPoint(g.end, boundaryPoint(rel, nodeCenter(ent)).x, boundaryPoint(rel, nodeCenter(ent)).y);
+  });
+  it('면이 지정된 선도 고르지 않으면 고정점끼리 곧게 잇는다', () => {
+    const ent = node('a', 'entity', 0, 0, 140, 60);
+    const rel = node('b', 'relationship', 300, 200, 140, 80);
+    const g = computeEdgeGeometry(edge('x', 'a', 'b', { sourceSide: 'bottom', targetSide: 'top' }), ent, rel);
+    expect(g.points).toHaveLength(2);
+    expectPoint(g.start, 70, 60);
+    expectPoint(g.end, 370, 200);
   });
 });
 
@@ -537,7 +582,7 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   const order = node('order', 'entity', -20, 320, 160, 60);
 
   it('엔티티 아래변에서 마름모 위 꼭짓점으로 수직으로 내려온다', () => {
-    const g = computeEdgeGeometry(edge('e1', 'customer', 'submits'), customer, submits);
+    const g = computeEdgeGeometry(elbow('e1', 'customer', 'submits'), customer, submits);
     // 엔티티 쪽은 변의 가운데(70)가 아니라 꼭짓점과 같은 x(80)에 붙는다
     expect(g.points).toEqual([{ x: 80, y: 60 }, { x: 80, y: 150 }]);
     expect(g.end).toEqual(anchorPoint(submits, 'top'));
@@ -550,7 +595,7 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   });
 
   it('마름모 아래 꼭짓점에서 엔티티 위변으로 수직으로 내려간다', () => {
-    const g = computeEdgeGeometry(edge('e2', 'submits', 'order'), submits, order);
+    const g = computeEdgeGeometry(elbow('e2', 'submits', 'order'), submits, order);
     expect(g.points).toEqual([{ x: 80, y: 230 }, { x: 80, y: 320 }]);
     expect(g.start).toEqual(anchorPoint(submits, 'bottom'));
     expect(g.sourceSide).toBe('bottom');
@@ -558,14 +603,14 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   });
 
   it('source와 target을 뒤집어 저장해도 같은 선이다', () => {
-    const g = computeEdgeGeometry(edge('e1', 'submits', 'customer'), submits, customer);
+    const g = computeEdgeGeometry(elbow('e1', 'submits', 'customer'), submits, customer);
     expect(g.points).toEqual([{ x: 80, y: 150 }, { x: 80, y: 60 }]);
     expect(g.sourceSide).toBe('top');
     expect(g.targetSide).toBe('bottom');
   });
 
   it('세로 선분의 카디널리티는 오른쪽, 역할 이름은 왼쪽', () => {
-    const g = computeEdgeGeometry(edge('e1', 'customer', 'submits'), customer, submits);
+    const g = computeEdgeGeometry(elbow('e1', 'customer', 'submits'), customer, submits);
     expectPoint(g.labelPos, 80 + LABEL_OFFSET, 105);
     expectPoint(g.rolePos, 80 - LABEL_OFFSET, 105);
   });
@@ -573,7 +618,7 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   it('옆으로 나란하면 마름모 옆 꼭짓점에서 수평으로 엔티티 변에 붙는다', () => {
     const left = node('left', 'entity', 0, 0, 140, 100);
     const rel = node('rel', 'relationship', 300, 20, 140, 80);
-    const g = computeEdgeGeometry(edge('e', 'left', 'rel'), left, rel);
+    const g = computeEdgeGeometry(elbow('e', 'left', 'rel'), left, rel);
     // 엔티티 오른쪽 변의 가운데는 y=50이지만 꼭짓점 높이 y=60에 붙는다
     expect(g.points).toEqual([{ x: 140, y: 60 }, { x: 300, y: 60 }]);
     expect(g.sourceSide).toBe('right');
@@ -595,10 +640,10 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
 
   it('재귀 관계(면 지정): 직선 하나와 오른쪽으로 돌아가는 꺾은선 하나', () => {
     const straight = computeEdgeGeometry(
-      edge('r0', 'employee', 'manages', { sourceSide: 'bottom', targetSide: 'top' }), employee, manages);
+      elbow('r0', 'employee', 'manages', { sourceSide: 'bottom', targetSide: 'top' }), employee, manages);
     expect(straight.points).toEqual([{ x: 70, y: 60 }, { x: 70, y: 160 }]);
     const g = computeEdgeGeometry(
-      edge('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right' }), employee, manages);
+      elbow('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right' }), employee, manages);
     expect(g.points).toEqual(loop);
     expect(g.start).toEqual(anchorPoint(employee, 'right'));
     expect(g.end).toEqual(anchorPoint(manages, 'right'));
@@ -613,7 +658,7 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   });
 
   it('재귀 관계(자동): 같은 두 도형 사이의 두 번째 선은 첫 번째 선이 쓴 면을 피해 돌아간다', () => {
-    const edges = [edge('r0', 'employee', 'manages'), edge('r1', 'manages', 'employee')];
+    const edges = [elbow('r0', 'employee', 'manages'), elbow('r1', 'manages', 'employee')];
     const info = siblingInfo(edges);
     const g0 = computeEdgeGeometry(edges[0], employee, manages, info.get('r0')!.index, info.get('r0')!.count);
     const g1 = computeEdgeGeometry(edges[1], manages, employee, info.get('r1')!.index, info.get('r1')!.count);
@@ -627,7 +672,7 @@ describe('꺾은선: 수업 슬라이드 사례', () => {
   it('폭이 다른 두 도형의 같은 면끼리는 더 튀어나온 쪽 바깥으로 돈다', () => {
     const wide = node('wide', 'relationship', -20, 160, 180, 80);
     const g = computeEdgeGeometry(
-      edge('r1', 'employee', 'wide', { sourceSide: 'right', targetSide: 'right' }), employee, wide);
+      elbow('r1', 'employee', 'wide', { sourceSide: 'right', targetSide: 'right' }), employee, wide);
     expect(g.points).toEqual([
       { x: 140, y: 30 },
       { x: 160 + ELBOW_STUB, y: 30 },
@@ -644,7 +689,7 @@ describe('꺾은선: 면 지정', () => {
   it('지정된 면은 anchorPoint에서 정확히 시작하고 끝난다', () => {
     for (const s of ['top', 'right', 'bottom', 'left'] as Side[]) {
       for (const t of ['top', 'right', 'bottom', 'left'] as Side[]) {
-        const g = computeEdgeGeometry(edge('x', 'a', 'b', { sourceSide: s, targetSide: t }), ent, rel);
+        const g = computeEdgeGeometry(elbow('x', 'a', 'b', { sourceSide: s, targetSide: t }), ent, rel);
         expect(g.start).toEqual(anchorPoint(ent, s));
         expect(g.end).toEqual(anchorPoint(rel, t));
         expect(g.points[0]).toEqual(g.start);
@@ -659,7 +704,7 @@ describe('꺾은선: 면 지정', () => {
   });
 
   it('지정된 면에서는 그 면의 바깥 방향으로 나간다', () => {
-    const g = computeEdgeGeometry(edge('x', 'a', 'b', { sourceSide: 'top', targetSide: 'bottom' }), ent, rel);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b', { sourceSide: 'top', targetSide: 'bottom' }), ent, rel);
     expect(g.points[1].x).toBe(70);
     expect(g.points[1].y).toBeLessThan(0);
     const n = g.points.length;
@@ -670,7 +715,7 @@ describe('꺾은선: 면 지정', () => {
   });
 
   it('한쪽만 지정하면 나머지 면은 자동으로 고른다', () => {
-    const g = computeEdgeGeometry(edge('x', 'a', 'b', { sourceSide: 'right' }), ent, rel);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b', { sourceSide: 'right' }), ent, rel);
     expect(g.points).toEqual([{ x: 140, y: 30 }, { x: 370, y: 30 }, { x: 370, y: 200 }]);
     expect(g.sourceSide).toBe('right');
     expect(g.targetSide).toBe('top');
@@ -678,14 +723,14 @@ describe('꺾은선: 면 지정', () => {
 
   it('지정된 마름모 꼭짓점에서 쏜 선이 엔티티에 닿으면 곧게 잇는다', () => {
     const below = node('b', 'relationship', 20, 160, 140, 80);
-    const g = computeEdgeGeometry(edge('x', 'a', 'b', { targetSide: 'top' }), ent, below);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b', { targetSide: 'top' }), ent, below);
     expect(g.points).toEqual([{ x: 90, y: 60 }, { x: 90, y: 160 }]);
     expect(g.sourceSide).toBe('bottom');
   });
 
   it('면이 지정된 속성 선도 꺾은선이 된다', () => {
     const attr = node('c', 'attribute', 300, 100, 120, 50);
-    const g = computeEdgeGeometry(edge('x', 'a', 'c', { sourceSide: 'right' }), ent, attr);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'c', { sourceSide: 'right' }), ent, attr);
     expect(g.start).toEqual(anchorPoint(ent, 'right'));
     expect(isOrthogonal(g.points)).toBe(true);
     expect(g.targetSide).not.toBeNull();
@@ -693,7 +738,7 @@ describe('꺾은선: 면 지정', () => {
   });
 
   it('직선 모양에서 지정된 끝은 고정점, 나머지 끝은 그 점을 향한 외곽선 교점', () => {
-    const g = computeEdgeGeometry(edge('x', 'a', 'b', { shape: 'straight', sourceSide: 'right' }), ent, rel, 0, 2);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b', { shape: 'straight', sourceSide: 'right' }), ent, rel, 0, 2);
     const s = anchorPoint(ent, 'right');
     expect(g.start).toEqual(s);
     const e = boundaryPoint(rel, s);
@@ -704,10 +749,10 @@ describe('꺾은선: 면 지정', () => {
     expect(g.sourceSide).toBe('right');
     expect(g.targetSide).toBeNull();
 
-    const both = computeEdgeGeometry(edge('x', 'a', 'b', { shape: 'straight', sourceSide: 'bottom', targetSide: 'left' }), ent, rel);
+    const both = computeEdgeGeometry(elbow('x', 'a', 'b', { shape: 'straight', sourceSide: 'bottom', targetSide: 'left' }), ent, rel);
     expect(both.start).toEqual(anchorPoint(ent, 'bottom'));
     expect(both.end).toEqual(anchorPoint(rel, 'left'));
-    const back = computeEdgeGeometry(edge('x', 'a', 'b', { shape: 'straight', targetSide: 'left' }), ent, rel);
+    const back = computeEdgeGeometry(elbow('x', 'a', 'b', { shape: 'straight', targetSide: 'left' }), ent, rel);
     expect(back.end).toEqual(anchorPoint(rel, 'left'));
     const s2 = boundaryPoint(ent, back.end);
     expectPoint(back.start, s2.x, s2.y);
@@ -719,12 +764,12 @@ describe('꺾은선: 자동 면 선택', () => {
 
   it('대각선 위치면 한 번 꺾어 마름모 꼭짓점에 붙는다', () => {
     const rel = node('b', 'relationship', 300, 200, 140, 80);
-    const g = computeEdgeGeometry(edge('x', 'a', 'b'), ent, rel);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b'), ent, rel);
     expect(g.points).toEqual([{ x: 140, y: 30 }, { x: 370, y: 30 }, { x: 370, y: 200 }]);
     expect(g.sourceSide).toBe('right');
     expect(g.targetSide).toBe('top');
     // 뒤집어 저장해도 같은 경로
-    const r = computeEdgeGeometry(edge('x', 'b', 'a'), rel, ent);
+    const r = computeEdgeGeometry(elbow('x', 'b', 'a'), rel, ent);
     expect(r.points).toEqual([...g.points].reverse());
     expect(r.labelPos).toEqual(g.labelPos);
   });
@@ -732,14 +777,14 @@ describe('꺾은선: 자동 면 선택', () => {
   it('길이가 비슷한 선분이 여럿이면 관계 쪽 선분에 글자를 둔다', () => {
     // 가로 160, 세로 150: 가장 긴 것은 가로지만 차이가 작아 마름모에 붙는 세로 선분을 고른다
     const rel = node('b', 'relationship', 230, 180, 140, 80);
-    const g = computeEdgeGeometry(edge('x', 'a', 'b'), ent, rel);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b'), ent, rel);
     expect(g.points).toEqual([{ x: 140, y: 30 }, { x: 300, y: 30 }, { x: 300, y: 180 }]);
     expectPoint(g.labelPos, 300 + LABEL_OFFSET, 105);
-    const r = computeEdgeGeometry(edge('x', 'b', 'a'), rel, ent);
+    const r = computeEdgeGeometry(elbow('x', 'b', 'a'), rel, ent);
     expectPoint(r.labelPos, 300 + LABEL_OFFSET, 105);
     // 차이가 크면 가장 긴 선분
     const far = node('b', 'relationship', 500, 180, 140, 80);
-    const g2 = computeEdgeGeometry(edge('x', 'a', 'b'), ent, far);
+    const g2 = computeEdgeGeometry(elbow('x', 'a', 'b'), ent, far);
     expectPoint(g2.labelPos, (140 + 570) / 2, 30 - LABEL_OFFSET);
   });
 
@@ -752,7 +797,7 @@ describe('꺾은선: 자동 면 선택', () => {
         // 겹치거나 꺾은선 여유(20)보다 가까이 붙은 배치는 제외
         const pad = 2 * ELBOW_STUB;
         if (x < 140 + pad && x + 140 > -pad && y < 60 + pad && y + 80 > -pad) continue;
-        for (const e of [edge('x', 'a', 'b'), edge('x', 'b', 'a'), edge('x', 'a', 'b', { double: true })]) {
+        for (const e of [elbow('x', 'a', 'b'), elbow('x', 'b', 'a'), elbow('x', 'a', 'b', { double: true })]) {
           const flipped = e.source === 'b';
           const g = flipped ? computeEdgeGeometry(e, rel, ent) : computeEdgeGeometry(e, ent, rel);
           expect(allFinite(g)).toBe(true);
@@ -782,7 +827,7 @@ describe('꺾은선: 자동 면 선택', () => {
     const rel0 = node('b', 'relationship', 0, 220, 140, 80);
     const seen: string[] = [];
     for (let x = -400; x <= 400; x += 1) {
-      const g = computeEdgeGeometry(edge('x', 'a', 'b'), ent, { ...rel0, x });
+      const g = computeEdgeGeometry(elbow('x', 'a', 'b'), ent, { ...rel0, x });
       const key = `${g.sourceSide}-${g.targetSide}-${g.points.length}`;
       if (seen[seen.length - 1] !== key) seen.push(key);
     }
@@ -792,7 +837,7 @@ describe('꺾은선: 자동 면 선택', () => {
 
   it('엔티티끼리 꺾은선으로 이으면 마주 보는 변을 쓴다', () => {
     const other = node('b', 'entity', 300, 200, 140, 60);
-    const g = computeEdgeGeometry(edge('x', 'a', 'b', { shape: 'elbow' }), ent, other);
+    const g = computeEdgeGeometry(elbow('x', 'a', 'b', { shape: 'elbow' }), ent, other);
     expect(isOrthogonal(g.points)).toBe(true);
     expect(crosses(g.points, nodeRect(ent))).toBe(false);
     expect(crosses(g.points, nodeRect(other))).toBe(false);
@@ -807,7 +852,7 @@ describe('꺾은선: 이중선', () => {
 
   it('직각 모서리에서도 두 줄 간격이 doubleGap으로 유지된다', () => {
     const g = computeEdgeGeometry(
-      edge('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right', double: true }), employee, manages);
+      elbow('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right', double: true }), employee, manages);
     expect(g.paths).toHaveLength(2);
     expect(g.hitPath).toBe(`M 140 30 L ${140 + ELBOW_STUB} 30 L ${140 + ELBOW_STUB} 200 L 140 200`);
     const [inner, outer] = g.paths.map(coords).sort((p, q) => p[1].x - q[1].x);
@@ -833,7 +878,7 @@ describe('꺾은선: 이중선', () => {
 
   it('마름모 꼭짓점에 붙는 두 줄은 꼭짓점을 지나 외곽선까지 닿는다', () => {
     const g = computeEdgeGeometry(
-      edge('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right', double: true }), employee, manages);
+      elbow('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right', double: true }), employee, manages);
     for (const l of g.paths.map(coords)) {
       const end = l[3];
       // 꼭짓점(x=140)보다 안쪽이고 마름모 변 위에 있다
@@ -841,7 +886,7 @@ describe('꺾은선: 이중선', () => {
       expect(Math.abs(end.x - 70) / 70 + Math.abs(end.y - 200) / 40).toBeCloseTo(1, 2);
     }
     // 수직으로 위 꼭짓점에 붙는 경우
-    const v = computeEdgeGeometry(edge('r0', 'employee', 'manages', { double: true }), employee, manages);
+    const v = computeEdgeGeometry(elbow('r0', 'employee', 'manages', { double: true }), employee, manages);
     expect(v.points).toEqual([{ x: 70, y: 60 }, { x: 70, y: 160 }]);
     const lines = v.paths.map(coords);
     expect(Math.abs(lines[0][0].x - lines[1][0].x)).toBeCloseTo(STYLE.doubleGap, 6);
@@ -856,7 +901,7 @@ describe('꺾은선: 이중선', () => {
   it('타원 끝점에 붙는 두 줄도 타원 위에서 끝난다', () => {
     const attr = node('attr', 'attribute', 300, 5, 120, 50);
     const g = computeEdgeGeometry(
-      edge('x', 'employee', 'attr', { sourceSide: 'right', targetSide: 'left', double: true }), employee, attr);
+      elbow('x', 'employee', 'attr', { sourceSide: 'right', targetSide: 'left', double: true }), employee, attr);
     expect(g.points).toEqual([{ x: 140, y: 30 }, { x: 300, y: 30 }]);
     for (const l of g.paths.map(coords)) {
       expect(l[1].x).toBeGreaterThan(300);
@@ -867,12 +912,12 @@ describe('꺾은선: 이중선', () => {
   it('메모에 붙는 줄은 메모 안으로 들어가지 않는다', () => {
     const memo = node('memo', 'note', 300, 5, 160, 50);
     const g = computeEdgeGeometry(
-      edge('x', 'employee', 'memo', { sourceSide: 'right', targetSide: 'left', double: true }), employee, memo);
+      elbow('x', 'employee', 'memo', { sourceSide: 'right', targetSide: 'left', double: true }), employee, memo);
     for (const l of g.paths.map(coords)) expect(l[l.length - 1].x).toBeCloseTo(300, 6);
   });
 
   it('이중선이면 글자를 half만큼 더 띄운다', () => {
-    const g = computeEdgeGeometry(edge('r0', 'employee', 'manages', { double: true }), employee, manages);
+    const g = computeEdgeGeometry(elbow('r0', 'employee', 'manages', { double: true }), employee, manages);
     expectPoint(g.labelPos, 70 + LABEL_OFFSET + half, 110);
   });
 });
@@ -881,7 +926,7 @@ describe('꺾은선: 거리와 선택', () => {
   const employee = node('employee', 'entity', 0, 0, 140, 60);
   const manages = node('manages', 'relationship', 0, 160, 140, 80);
   const g = computeEdgeGeometry(
-    edge('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right' }), employee, manages);
+    elbow('r1', 'employee', 'manages', { sourceSide: 'right', targetSide: 'right' }), employee, manages);
   const x = 140 + ELBOW_STUB;
 
   it('edgePolyline은 꼭짓점을 그대로 준다', () => {
@@ -943,13 +988,30 @@ describe('면이 지정된 엔티티 변에서의 미끄러짐', () => {
     expect(g.start).toEqual({ x: 790, y: 260 });
   });
 
-  it('지정된 면과 마주 보지 않으면 곧은 연결을 쓰지 않는다', () => {
+  it('지정된 면이 마주 보지 않으면 직선은 고정점끼리 잇고, 꺾은선을 고르면 돌아간다', () => {
     const emp = node('emp', 'entity', 680, 160, 200, 100);
     const mng = node('mng', 'relationship', 720, 330, 140, 80);
     const edge: ErdEdge = { id: 'e', source: 'emp', target: 'mng', double: false, label: 'M', role: '', sourceSide: 'right', targetSide: 'right' };
-    const g = computeEdgeGeometry(edge, emp, mng);
+    const straight = computeEdgeGeometry(edge, emp, mng);
+    expect(straight.points).toHaveLength(2);
+    expect(straight.start).toEqual({ x: 880, y: 210 });
+    expect(straight.end).toEqual({ x: 860, y: 370 });
+
+    const g = computeEdgeGeometry({ ...edge, shape: 'elbow' }, emp, mng);
     expect(g.points.length).toBeGreaterThan(2);
     expect(g.start).toEqual({ x: 880, y: 210 });
     expect(g.end).toEqual({ x: 860, y: 370 });
+  });
+
+  it('직선과 꺾은선 모두 어긋난 꼭짓점과 곧게 만난다', () => {
+    const emp = node('emp', 'entity', 680, 160, 200, 100);
+    const mng = node('mng', 'relationship', 720, 330, 140, 80);
+    const edge: ErdEdge = { id: 'e', source: 'emp', target: 'mng', double: false, label: '1', role: '', sourceSide: 'bottom', targetSide: 'top' };
+    const a = computeEdgeGeometry(edge, emp, mng);
+    const b = computeEdgeGeometry({ ...edge, shape: 'elbow' }, emp, mng);
+    expect(a.points).toEqual(b.points);
+    // source와 target을 뒤집어 저장해도 같은 선이다
+    const flipped = computeEdgeGeometry({ ...edge, source: 'mng', target: 'emp', sourceSide: 'top', targetSide: 'bottom' }, mng, emp);
+    expect(flipped.points).toEqual([...a.points].reverse());
   });
 });

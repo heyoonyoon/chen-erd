@@ -11,6 +11,7 @@ import {
   parseSize,
   presetChangePatch,
   resizePatch,
+  defaultEdgeShape,
   resolveEdgeShape,
 } from './inspectorLogic';
 
@@ -192,23 +193,23 @@ describe('resolveEdgeShape', () => {
   const a = node({ kind: 'attribute' });
   const s = node({ kind: 'spec' });
 
-  it('자동: 엔티티와 관계 사이는 꺾은선, 그 밖은 직선', () => {
-    expect(resolveEdgeShape({}, e, r)).toBe('elbow');
-    expect(resolveEdgeShape({}, r, e)).toBe('elbow');
-    expect(resolveEdgeShape({}, e, a)).toBe('straight');
-    expect(resolveEdgeShape({}, r, a)).toBe('straight');
-    expect(resolveEdgeShape({}, e, s)).toBe('straight');
-    expect(resolveEdgeShape({}, e, undefined)).toBe('straight');
-  });
-
-  it('자동이라도 붙는 면이 하나라도 지정되면 꺾은선', () => {
-    expect(resolveEdgeShape({ sourceSide: 'top' }, e, a)).toBe('elbow');
-    expect(resolveEdgeShape({ targetSide: 'left' }, e, s)).toBe('elbow');
+  it('모양을 고르지 않은 선은 붙는 면이 지정돼 있어도 직선이다', () => {
+    expect(resolveEdgeShape({})).toBe('straight');
+    expect(resolveEdgeShape({ shape: 'straight' })).toBe('straight');
   });
 
   it('직접 고른 모양이 가장 먼저다', () => {
-    expect(resolveEdgeShape({ shape: 'straight' }, e, r)).toBe('straight');
-    expect(resolveEdgeShape({ shape: 'straight', sourceSide: 'top' }, e, r)).toBe('straight');
-    expect(resolveEdgeShape({ shape: 'elbow' }, e, a)).toBe('elbow');
+    expect(resolveEdgeShape({ shape: 'elbow' })).toBe('elbow');
+    expect(resolveEdgeShape({ shape: 'straight' }, e, r, 2)).toBe('straight');
+  });
+
+  it('재귀 관계의 선은 고르지 않으면 꺾은선이다', () => {
+    expect(resolveEdgeShape({}, e, r, 2)).toBe('elbow');
+    expect(resolveEdgeShape({}, r, e, 2)).toBe('elbow');
+    expect(resolveEdgeShape({}, e, r, 1)).toBe('straight');
+    expect(resolveEdgeShape({}, e, a, 2)).toBe('straight');
+    expect(resolveEdgeShape({}, e, s, 2)).toBe('straight');
+    expect(defaultEdgeShape(e, r, 2)).toBe('elbow');
+    expect(defaultEdgeShape(e, r)).toBe('straight');
   });
 });

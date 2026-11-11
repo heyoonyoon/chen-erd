@@ -15,8 +15,8 @@ export function DiagramContent({ nodes, edges }: { nodes: ErdNode[]; edges: ErdE
         const s = byId.get(e.source);
         const t = byId.get(e.target);
         if (!s || !t) return null;
-        const sib = siblings.get(e.id) ?? { index: 0, count: 1 };
-        return <EdgeShape key={e.id} edge={e} geometry={computeEdgeGeometry(e, s, t, sib.index, sib.count)} />;
+        const sib = siblings.get(e.id) ?? { index: 0, count: 1, pair: 1 };
+        return <EdgeShape key={e.id} edge={e} geometry={computeEdgeGeometry(e, s, t, sib.index, sib.count, sib.pair)} />;
       })}
       {nodes.map((n) => (
         <NodeShape key={n.id} node={n} />

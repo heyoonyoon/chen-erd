@@ -212,14 +212,26 @@ export interface EdgeGeometry {
   rolePos: Point;
 }
 
-/** 엣지가 실제로 그려지는 모양. shape가 없으면 자동 규칙(types.ts의 ErdEdge.shape 주석)을 따른다 */
-export function edgeShapeOf(edge: ErdEdge, source: ErdNode, target: ErdNode): EdgeShapeKind {
+/** 엔티티와 관계를 잇는 선인지 */
+function joinsEntityAndRelationship(source: ErdNode | undefined, target: ErdNode | undefined): boolean {
+  return (
+    (source?.kind === 'entity' && target?.kind === 'relationship') ||
+    (source?.kind === 'relationship' && target?.kind === 'entity')
+  );
+}
+
+/**
+ * 엣지가 실제로 그려지는 모양. 직접 고른 모양이 있으면 그 모양이고, 없으면 직선이다.
+ * 단, 재귀 관계(같은 엔티티와 관계 사이에 선이 둘 이상, pairCount > 1)의 선은 고르지 않았을 때 꺾은선이다.
+ */
+export function edgeShapeOf(
+  edge: Pick<ErdEdge, 'shape'>,
+  source?: ErdNode,
+  target?: ErdNode,
+  pairCount = 1,
+): EdgeShapeKind {
   if (edge.shape === 'straight' || edge.shape === 'elbow') return edge.shape;
-  if (edge.sourceSide || edge.targetSide) return 'elbow';
-  const entityRelationship =
-    (source.kind === 'entity' && target.kind === 'relationship') ||
-    (source.kind === 'relationship' && target.kind === 'entity');
-  return entityRelationship ? 'elbow' : 'straight';
+  return pairCount > 1 && joinsEntityAndRelationship(source, target) ? 'elbow' : 'straight';
 }
 
 // ── 꺾은선 경로 찾기 ──
@@ -550,6 +562,7 @@ function polylineGeometry(
 /**
  * 엣지 하나를 그리는 데 필요한 좌표를 계산한다.
  * siblingIndex/siblingCount: 같은 두 노드를 잇는 엣지가 여러 개일 때(재귀 관계) 몇 번째인지. 기본은 0/1.
+ * pairCount: 붙는 면 지정과 상관없이 같은 두 노드를 잇는 엣지의 수. 기본 모양을 정하는 데 쓴다.
  */
 export function computeEdgeGeometry(
   edge: ErdEdge,
@@ -557,8 +570,9 @@ export function computeEdgeGeometry(
   target: ErdNode,
   siblingIndex = 0,
   siblingCount = 1,
+  pairCount = siblingCount,
 ): EdgeGeometry {
-  const shape = edgeShapeOf(edge, source, target);
+  const shape = edgeShapeOf(edge, source, target, pairCount);
   const pinned = !!(edge.sourceSide || edge.targetSide);
 
   if (shape === 'elbow') {
@@ -576,7 +590,17 @@ export function computeEdgeGeometry(
   }
 
   if (pinned) {
-    // 면이 지정된 끝은 고정점에서, 지정 안 된 끝은 상대 끝점 방향의 외곽선에서 시작하는 직선
+    // 고정점에서 가로나 세로로 곧게 뻗어 상대 도형의 마주 보는 면에 닿으면 그 선을 쓴다.
+    // 엔티티는 변 위에서 미끄러지므로, 마름모 꼭짓점과 조금 어긋나 있어도 선이 비스듬해지지 않는다.
+    const flip = source.id > target.id;
+    const direct = flip
+      ? directRoute(target, source, edge.targetSide, edge.sourceSide, [], [])
+      : directRoute(source, target, edge.sourceSide, edge.targetSide, [], []);
+    if (direct) {
+      const pts = flip ? [...direct.points].reverse() : direct.points;
+      return polylineGeometry(edge, source, target, pts, flip ? direct.sideB : direct.sideA, flip ? direct.sideA : direct.sideB, null);
+    }
+    // 그렇게 만나지 못하면 면이 지정된 끝은 고정점에서, 지정 안 된 끝은 상대 끝점 방향의 외곽선에서 시작하는 직선
     let s: Point;
     let e: Point;
     if (edge.sourceSide && edge.targetSide) {
@@ -655,23 +679,27 @@ export function computeEdgeGeometry(
  * 같은 두 노드를 잇는 엣지끼리 묶어 각 엣지의 순번을 알려 준다. key는 edge.id.
  * 면이 지정된 엣지는 자리가 정해져 있으므로 순번에서 빼고 { index: 0, count: 1 }을 준다.
  */
-export function siblingInfo(edges: ErdEdge[]): Map<string, { index: number; count: number }> {
+export function siblingInfo(edges: ErdEdge[]): Map<string, { index: number; count: number; pair: number }> {
   const groups = new Map<string, string[]>();
-  const result = new Map<string, { index: number; count: number }>();
+  const result = new Map<string, { index: number; count: number; pair: number }>();
+  const keyOf = (e: ErdEdge) => (e.source < e.target ? `${e.source}\u0000${e.target}` : `${e.target}\u0000${e.source}`);
+  // pair: 붙는 면이 지정된 선까지 포함해 같은 두 도형을 잇는 선의 수
+  const pairs = new Map<string, number>();
+  for (const e of edges) pairs.set(keyOf(e), (pairs.get(keyOf(e)) ?? 0) + 1);
   for (const e of edges) {
+    const key = keyOf(e);
     if (e.sourceSide || e.targetSide) {
-      result.set(e.id, { index: 0, count: 1 });
+      result.set(e.id, { index: 0, count: 1, pair: pairs.get(key) ?? 1 });
       continue;
     }
-    const key = e.source < e.target ? `${e.source}\u0000${e.target}` : `${e.target}\u0000${e.source}`;
     const group = groups.get(key);
     if (group) group.push(e.id);
     else groups.set(key, [e.id]);
   }
-  for (const ids of groups.values()) {
+  for (const [key, ids] of groups) {
     // 접속자마다 같은 결과가 나오도록 로캘과 무관한 단순 비교로 정렬한다
     ids.sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
-    ids.forEach((id, index) => result.set(id, { index, count: ids.length }));
+    ids.forEach((id, index) => result.set(id, { index, count: ids.length, pair: pairs.get(key) ?? ids.length }));
   }
   return result;
 }

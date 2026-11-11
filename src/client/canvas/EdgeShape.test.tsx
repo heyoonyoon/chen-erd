@@ -54,7 +54,7 @@ describe('EdgeShape', () => {
   });
 
   it('꺾은선: 모서리를 각지게 잇고 이중선도 꺾인 두 줄로 그린다', () => {
-    const edge: ErdEdge = { id: 'e2', source: 'a', target: 'b', double: true, label: 'N', role: '', sourceSide: 'top', targetSide: 'top' };
+    const edge: ErdEdge = { id: 'e2', source: 'a', target: 'b', double: true, label: 'N', role: '', sourceSide: 'top', targetSide: 'top', shape: 'elbow' };
     const geometry = computeEdgeGeometry(edge, a, b);
     expect(geometry.points.length).toBeGreaterThan(2);
     const html = renderToStaticMarkup(<EdgeShape edge={edge} geometry={geometry} />);

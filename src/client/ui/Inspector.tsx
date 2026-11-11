@@ -8,6 +8,7 @@ import { transact, updateEdge, updateEdges, updateNode, updateNodes, type EdgePa
 import { useEdges, useNodeMap, useRoom } from '../collab/hooks';
 import { useUi } from '../state/ui';
 import { fitNodeSize, growToFit } from '../text/measure';
+import { siblingInfo } from '../../shared/geometry';
 import { edgeCanBeDouble, edgeHasCardinality } from '../../shared/rules';
 import {
   CARDINALITY_OPTIONS,
@@ -27,6 +28,7 @@ import {
 import {
   alignNodes,
   commonValue,
+  defaultEdgeShape,
   distributeNodes,
   edgeNature,
   keyTypeOf,
@@ -504,13 +506,10 @@ const SIDE_OPTIONS: SegOption<SideChoice>[] = [
   ...SIDES.map((side) => ({ value: side, label: SIDE_LABELS[side], icon: <SideIcon side={side} /> })),
 ];
 
-type ShapeChoice = EdgeShapeKind | 'auto';
-const SHAPE_OPTIONS: SegOption<ShapeChoice>[] = [
-  { value: 'auto', label: '자동' },
+const SHAPE_OPTIONS: SegOption<EdgeShapeKind>[] = [
   { value: 'straight', label: '직선' },
-  { value: 'elbow', label: '꺾은선' },
+  { value: 'elbow', label: '꺾은선', title: '가로와 세로 선분으로 꺾어서 잇습니다' },
 ];
-const SHAPE_LABELS: Record<EdgeShapeKind, string> = { straight: '직선', elbow: '꺾은선' };
 
 /** 선 하나의 양 끝이 도형의 어느 쪽에 붙는지 */
 function EdgeAnchorSection({ edge, nodeMap }: { edge: ErdEdge; nodeMap: Map<string, ErdNode> }) {
@@ -549,7 +548,7 @@ function EdgeAnchorSection({ edge, nodeMap }: { edge: ErdEdge; nodeMap: Map<stri
       <button
         type="button"
         className="btn btn-ghost inspector-reset"
-        title="양쪽 붙는 위치와 선 모양을 자동으로 되돌립니다"
+        title="양쪽 붙는 위치를 자동으로, 선 모양을 기본으로 되돌립니다"
         data-testid="inspector-anchor-reset"
         disabled={isDefault}
         onClick={() => updateEdge(room.doc, edge.id, { sourceSide: undefined, targetSide: undefined, shape: undefined })}
@@ -563,20 +562,24 @@ function EdgeAnchorSection({ edge, nodeMap }: { edge: ErdEdge; nodeMap: Map<stri
 /** 선 모양(하나 또는 여러 개 한꺼번에) */
 function EdgeShapeSection({ edges, nodeMap }: { edges: ErdEdge[]; nodeMap: Map<string, ErdNode> }) {
   const room = useRoom();
-  const choice = commonValue(edges.map((e): ShapeChoice => e.shape ?? 'auto'));
-  const drawn = commonValue(edges.map((e) => resolveEdgeShape(e, nodeMap.get(e.source), nodeMap.get(e.target))));
-  const change = (v: ShapeChoice) => {
-    const shape = v === 'auto' ? undefined : v;
-    updateEdges(room.doc, edges.map((e) => ({ id: e.id, patch: { shape } })));
+  const allEdges = useEdges();
+  const siblings = useMemo(() => siblingInfo(allEdges), [allEdges]);
+  const pairOf = (e: ErdEdge) => siblings.get(e.id)?.pair ?? 1;
+  // 여러 선의 모양이 섞여 있으면 아무것도 고르지 않은 상태로 보인다
+  const choice = commonValue(edges.map((e) => resolveEdgeShape(e, nodeMap.get(e.source), nodeMap.get(e.target), pairOf(e))));
+  const change = (v: EdgeShapeKind) => {
+    // 그 선의 기본 모양(재귀 관계는 꺾은선, 그 밖은 직선)과 같으면 문서에 적지 않는다
+    updateEdges(
+      room.doc,
+      edges.map((e) => {
+        const base = defaultEdgeShape(nodeMap.get(e.source), nodeMap.get(e.target), pairOf(e));
+        return { id: e.id, patch: { shape: v === base ? undefined : v } };
+      }),
+    );
   };
   return (
     <Section title="선 모양">
       <Segmented label="선 모양" testId="inspector-shape" options={SHAPE_OPTIONS} value={choice} onChange={change} />
-      {choice === 'auto' && (
-        <p className="inspector-hint" data-testid="inspector-shape-hint">
-          {drawn ? `지금은 ${SHAPE_LABELS[drawn]}으로 그립니다.` : '지금은 선마다 다른 모양으로 그립니다.'}
-        </p>
-      )}
     </Section>
   );
 }
