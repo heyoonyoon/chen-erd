@@ -1,13 +1,15 @@
 /**
  * Chen 표기법의 연결 규칙과 다이어그램 검증(순수 함수). [담당: rules 에이전트]
  * 아래 export의 이름과 시그니처는 계약이므로 바꾸지 않는다.
+ * 이유와 설명은 문장이 아니라 메시지(키와 값)로 돌려준다. 화면에 보일 때 클라이언트가 현재 언어로 바꾼다.
  */
+import { msg, type ConnectReasonKey, type IssueMessageKey, type Message, type MessageParam, type NodeNounId, type SharedMessage } from './messages';
 import type { ErdEdge, ErdNode, Issue, NodeKind } from './types';
 
 export interface ConnectCheck {
   ok: boolean;
-  /** 연결할 수 없는 이유(한국어). ok면 생략 */
-  reason?: string;
+  /** 연결할 수 없는 이유. ok면 생략 */
+  reason?: SharedMessage;
 }
 
 /** 노드 목록. 배열과 id → 노드 Map 둘 다 받는다. */
@@ -35,17 +37,17 @@ function isEntitySpec(a: NodeKind, b: NodeKind): boolean {
 }
 
 /** 도형 종류만 보고 연결할 수 없는 조합이면 이유를 돌려준다. 가능하면 null. (대칭) */
-function kindPairReason(a: NodeKind, b: NodeKind): string | null {
-  if (a === 'note' || b === 'note') return '메모는 다른 도형과 선으로 연결할 수 없습니다';
+function kindPairReason(a: NodeKind, b: NodeKind): ConnectReasonKey | null {
+  if (a === 'note' || b === 'note') return 'connect.note';
   if (a === 'spec' || b === 'spec') {
     const other = a === 'spec' ? b : a;
     if (other === 'entity') return null;
-    if (other === 'spec') return '특수화 원끼리는 연결할 수 없습니다';
-    if (other === 'relationship') return '특수화 원은 관계가 아니라 엔티티(슈퍼타입, 서브타입)와 연결합니다';
-    return '특수화 원에는 속성을 달 수 없습니다';
+    if (other === 'spec') return 'connect.specSpec';
+    if (other === 'relationship') return 'connect.specRelationship';
+    return 'connect.specAttribute';
   }
-  if (a === 'entity' && b === 'entity') return '엔티티끼리는 관계(마름모)를 거쳐 연결합니다';
-  if (a === 'relationship' && b === 'relationship') return '관계끼리는 직접 연결할 수 없습니다';
+  if (a === 'entity' && b === 'entity') return 'connect.entityEntity';
+  if (a === 'relationship' && b === 'relationship') return 'connect.relationshipRelationship';
   return null;
 }
 
@@ -58,18 +60,17 @@ function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-function kindNoun(n: ErdNode): string {
+/** 메시지에서 이 도형을 부르는 말의 종류. 특수화 원은 따로 다룬다. */
+function nounOf(n: ErdNode): NodeNounId {
   switch (n.kind) {
     case 'entity':
-      return n.weak ? '약한 엔티티' : '엔티티';
+      return n.weak ? 'weakEntity' : 'entity';
     case 'relationship':
-      return n.identifying ? '식별 관계' : '관계';
-    case 'attribute':
-      return '속성';
-    case 'spec':
-      return '특수화 원';
+      return n.identifying ? 'identifyingRelationship' : 'relationship';
     case 'note':
-      return '메모';
+      return 'note';
+    default:
+      return 'attribute';
   }
 }
 
@@ -77,25 +78,32 @@ function plainName(n: ErdNode): string {
   return n.text.replace(/\s+/g, ' ').trim();
 }
 
-/** 메시지에 넣을 도형 이름. 예: 'TEAM' 엔티티, 이름 없는 속성, 특수화 원(d) */
-function describe(n: ErdNode): string {
-  if (n.kind === 'spec') return `특수화 원(${n.specType ?? 'd'})`;
+/** 메시지에 넣을 도형 이름. 한국어로는 'TEAM' 엔티티, 이름 없는 속성, 특수화 원(d) */
+function describe(n: ErdNode): SharedMessage {
+  if (n.kind === 'spec') return msg('rules.node.spec', { type: n.specType ?? 'd' });
   const name = plainName(n);
-  return name ? `'${name}' ${kindNoun(n)}` : `이름 없는 ${kindNoun(n)}`;
+  return name ? msg(`rules.node.${nounOf(n)}.named`, { name }) : msg(`rules.node.${nounOf(n)}.unnamed`);
 }
 
-/** 받침에 따라 조사를 고른다. 한글로 끝나지 않으면 받침 없는 쪽을 쓴다. */
-function josa(word: string, withFinal: string, withoutFinal: string): string {
-  const stripped = word.replace(/[^가-힣A-Za-z0-9]+$/, '');
-  const code = stripped.charCodeAt(stripped.length - 1);
-  const hasFinal = code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
-  return word + (hasFinal ? withFinal : withoutFinal);
-}
-
-function quoteNames(nodes: ErdNode[], limit = 3): string {
-  const names = nodes.slice(0, limit).map((n) => `'${plainName(n) || '이름 없음'}'`);
+/** 이름을 따옴표로 묶어 나열한다. limit개를 넘으면 나머지는 개수만 적는다. */
+function quoteNames(nodes: ErdNode[], limit = 3): MessageParam {
+  const names = nodes.slice(0, limit).map((n): SharedMessage => {
+    const name = plainName(n);
+    return name ? msg('rules.name.quoted', { name }) : msg('rules.name.unnamed');
+  });
   const rest = nodes.length - limit;
-  return names.join(', ') + (rest > 0 ? ` 외 ${rest}개` : '');
+  return rest > 0 ? msg('rules.names.more', { names, count: rest }) : names;
+}
+
+/** 내용이 같은 메시지를 하나만 남긴다(이름과 종류가 같은 도형이 여럿일 때). */
+function uniqueMessages(list: SharedMessage[]): SharedMessage[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const key = JSON.stringify(m);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function centerX(n: ErdNode): number {
@@ -160,10 +168,10 @@ function attributeGroup(startId: string, neighbors: Map<string, string[]>, nodeB
  * 엣지에는 노드 id만 있어서, nodes가 없으면 속성이 이미 무엇에 붙어 있는지 알 수 없어 그 규칙은 건너뛴다.
  */
 export function canConnect(source: ErdNode, target: ErdNode, edges: ErdEdge[], nodes?: NodeLookup): ConnectCheck {
-  if (source.id === target.id) return { ok: false, reason: '자기 자신과는 연결할 수 없습니다' };
+  if (source.id === target.id) return { ok: false, reason: msg('connect.self') };
 
   const kindReason = kindPairReason(source.kind, target.kind);
-  if (kindReason) return { ok: false, reason: kindReason };
+  if (kindReason) return { ok: false, reason: msg(kindReason) };
 
   let existing = 0;
   for (const e of edges) {
@@ -171,8 +179,8 @@ export function canConnect(source: ErdNode, target: ErdNode, edges: ErdEdge[], n
   }
   if (existing >= maxEdgesBetween(source.kind, target.kind)) {
     return isEntityRelationship(source.kind, target.kind)
-      ? { ok: false, reason: '같은 엔티티와 관계 사이에는 선을 2개까지만 그을 수 있습니다' }
-      : { ok: false, reason: '두 도형은 이미 연결되어 있습니다' };
+      ? { ok: false, reason: msg('connect.pairLimit') }
+      : { ok: false, reason: msg('connect.alreadyConnected') };
   }
 
   if (nodes && (source.kind === 'attribute' || target.kind === 'attribute')) {
@@ -181,12 +189,12 @@ export function canConnect(source: ErdNode, target: ErdNode, edges: ErdEdge[], n
     if (source.kind === 'attribute' && target.kind === 'attribute') {
       const a = attributeGroup(source.id, neighbors, nodeById);
       if (a.members.has(target.id)) {
-        return { ok: false, reason: '두 속성은 이미 같은 복합 속성으로 이어져 있습니다' };
+        return { ok: false, reason: msg('connect.sameComposite') };
       }
       const b = attributeGroup(target.id, neighbors, nodeById);
       if (a.owners.length > 0 && b.owners.length > 0) {
         // 양쪽 다 이미 소유자가 있으면, 이었을 때 한쪽이 상위를 둘 가지게 된다
-        return { ok: false, reason: '두 속성이 각각 이미 엔티티나 관계에 속해 있어 복합 속성으로 이을 수 없습니다' };
+        return { ok: false, reason: msg('connect.bothOwned') };
       }
     } else {
       const attribute = source.kind === 'attribute' ? source : target;
@@ -194,8 +202,8 @@ export function canConnect(source: ErdNode, target: ErdNode, edges: ErdEdge[], n
       if (group.owners.length > 0) {
         const direct = group.owners.find((o) => o.via === attribute.id);
         return direct
-          ? { ok: false, reason: `이 속성은 이미 ${describe(direct.owner)}에 연결되어 있어 다른 곳에 또 연결할 수 없습니다` }
-          : { ok: false, reason: `이 속성은 ${describe(group.owners[0].owner)}의 복합 속성에 속해 있어 따로 연결할 수 없습니다` };
+          ? { ok: false, reason: msg('connect.attributeOwned', { owner: describe(direct.owner) }) }
+          : { ok: false, reason: msg('connect.attributeInComposite', { owner: describe(group.owners[0].owner) }) };
       }
     }
   }
@@ -300,10 +308,10 @@ interface AttributeComponent {
 export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
   const errors: Issue[] = [];
   const warnings: Issue[] = [];
-  const error = (id: string, message: string, elementIds: string[]) => {
+  const error = (id: string, message: Message<IssueMessageKey>, elementIds: string[]) => {
     errors.push({ id, severity: 'error', message, elementIds });
   };
-  const warn = (id: string, message: string, elementIds: string[]) => {
+  const warn = (id: string, message: Message<IssueMessageKey>, elementIds: string[]) => {
     warnings.push({ id, severity: 'warning', message, elementIds });
   };
 
@@ -322,20 +330,20 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
       const present = s ?? t;
       error(
         `edge-dangling:${e.id}`,
-        present ? `${describe(present)}에서 나온 선의 반대쪽 끝에 도형이 없습니다` : '양 끝에 도형이 없는 선이 있습니다',
+        present ? msg('issue.edgeDangling', { node: describe(present) }) : msg('issue.edgeDanglingBoth'),
         present ? [e.id, present.id] : [e.id],
       );
       continue;
     }
     if (s.id === t.id) {
-      error(`edge-self:${e.id}`, `${josa(describe(s), '이', '가')} 자기 자신과 선으로 이어져 있습니다`, [e.id, s.id]);
+      error(`edge-self:${e.id}`, msg('issue.edgeSelf', { node: describe(s) }), [e.id, s.id]);
       continue;
     }
     const reason = kindPairReason(s.kind, t.kind);
     if (reason) {
       error(
         `edge-invalid:${e.id}`,
-        `${josa(describe(s), '과', '와')} ${josa(describe(t), '이', '가')} 선으로 이어져 있습니다. ${reason}`,
+        msg('issue.edgeInvalid', { a: describe(s), b: describe(t), reason: msg(reason) }),
         [e.id, s.id, t.id],
       );
       continue;
@@ -357,7 +365,7 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
     if (pair.length <= max) continue;
     error(
       `edge-duplicate:${key}`,
-      `${josa(describe(s), '과', '와')} ${describe(t)} 사이에 선이 ${pair.length}개 있습니다. ${max === 2 ? '재귀 관계라도 2개까지만 그립니다' : '하나만 남기고 지워야 합니다'}`,
+      msg(max === 2 ? 'issue.edgeDuplicateRecursive' : 'issue.edgeDuplicate', { a: describe(s), b: describe(t), count: pair.length }),
       pair.map((e) => e.id),
     );
   }
@@ -397,28 +405,28 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
     const anchor = memberIds.reduce((a, b) => (a < b ? a : b));
     if (owners.length === 0) {
       if (members.length === 1) {
-        error(`attribute-unconnected:${start.id}`, `${josa(describe(start), '이', '가')} 어디에도 연결되어 있지 않습니다`, [start.id]);
+        error(`attribute-unconnected:${start.id}`, msg('issue.attributeUnconnected', { node: describe(start) }), [start.id]);
       } else {
         error(
           `attribute-unowned:${anchor}`,
-          `${quoteNames(members)} 속성이 서로만 이어져 있고 엔티티나 관계에는 연결되어 있지 않습니다`,
+          msg('issue.attributeUnowned', { names: quoteNames(members) }),
           memberIds,
         );
       }
     } else if (owners.length > 1) {
-      const ownerNames = [...new Set(owners.map(describe))].join(', ');
+      const ownerNames = uniqueMessages(owners.map(describe));
       error(
         `attribute-multi-owner:${anchor}`,
         members.length === 1
-          ? `${josa(describe(start), '이', '가')} 여러 곳(${ownerNames})에 연결되어 있습니다. 속성은 엔티티나 관계 하나에만 속해야 합니다`
-          : `서로 이어진 ${quoteNames(members)} 속성이 엔티티나 관계에 선 ${owners.length}개로 연결되어 있습니다. 복합 속성은 맨 위 속성 하나만 연결합니다`,
+          ? msg('issue.attributeMultiOwner', { node: describe(start), owners: ownerNames })
+          : msg('issue.attributeGroupMultiOwner', { names: quoteNames(members), count: owners.length }),
         memberIds,
       );
     }
     if (attributePairs.size > members.length - 1) {
       error(
         `attribute-cycle:${anchor}`,
-        `${quoteNames(members)} 속성이 고리 모양으로 이어져 있습니다. 하위 속성은 상위 속성 하나에만 연결합니다`,
+        msg('issue.attributeCycle', { names: quoteNames(members) }),
         memberIds,
       );
     }
@@ -439,7 +447,7 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
     if (members.size < 2) {
       error(
         `spec-degree:${spec.id}`,
-        `${describe(spec)}에는 슈퍼타입과 서브타입을 합쳐 엔티티가 2개 이상 연결되어야 합니다(현재 ${members.size}개)`,
+        msg('issue.specDegree', { node: describe(spec), count: members.size }),
         [spec.id],
       );
     }
@@ -452,7 +460,8 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
     const label = describe(node);
 
     if ((node.kind === 'entity' || node.kind === 'relationship' || node.kind === 'attribute') && plainName(node) === '') {
-      warn(`empty-name:${node.id}`, `이름이 비어 있는 ${josa(kindNoun(node), '이', '가')} 있습니다`, [node.id]);
+      const noun = nounOf(node) as Exclude<NodeNounId, 'note'>;
+      warn(`empty-name:${node.id}`, msg(`issue.emptyName.${noun}`), [node.id]);
     }
 
     if (node.kind === 'entity') {
@@ -482,24 +491,24 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
 
       if (node.weak) {
         if (identifyingEdges.length === 0) {
-          error(`weak-no-identifying:${node.id}`, `${josa(label, '이', '가')} 식별 관계(이중 마름모)에 연결되어 있지 않습니다`, [node.id]);
+          error(`weak-no-identifying:${node.id}`, msg('issue.weakNoIdentifying', { node: label }), [node.id]);
         } else if (!identifyingEdges.some((e) => e.double)) {
           // 식별 관계가 여럿이면(약한 엔티티가 다른 약한 엔티티의 소유자인 경우) 그중 하나만 이중선이면 된다
           warn(
             `weak-participation:${node.id}`,
-            `${josa(label, '과', '와')} 식별 관계 사이의 선이 이중선이 아닙니다. 약한 엔티티는 식별 관계에 전체 참여합니다`,
+            msg('issue.weakParticipation', { node: label }),
             identifyingEdges.map((e) => e.id),
           );
         }
         if (!hasPartialKey) {
-          warn(`weak-no-partial-key:${node.id}`, `${label}에 부분 키(점선 밑줄 속성)가 없습니다`, [node.id]);
+          warn(`weak-no-partial-key:${node.id}`, msg('issue.weakNoPartialKey', { node: label }), [node.id]);
         }
       } else if (!hasKey && !subtypeIds.has(node.id)) {
-        warn(`entity-no-key:${node.id}`, `${label}에 식별자(키 속성)가 없습니다`, [node.id]);
+        warn(`entity-no-key:${node.id}`, msg('issue.entityNoKey', { node: label }), [node.id]);
       }
 
       if (!connected) {
-        warn(`entity-isolated:${node.id}`, `${josa(label, '이', '가')} 어떤 관계나 특수화에도 연결되어 있지 않습니다`, [node.id]);
+        warn(`entity-isolated:${node.id}`, msg('issue.entityIsolated', { node: label }), [node.id]);
       }
     } else if (node.kind === 'relationship') {
       let entityEdges = 0;
@@ -511,7 +520,7 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
         if (edge.label.trim() === '') {
           warn(
             `edge-no-cardinality:${edge.id}`,
-            `${josa(describe(other), '과', '와')} ${label} 사이의 선에 카디널리티(1, M, N)가 없습니다`,
+            msg('issue.edgeNoCardinality', { a: describe(other), b: label }),
             [edge.id],
           );
         }
@@ -519,23 +528,18 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
       if (entityEdges < 2) {
         error(
           `relationship-degree:${node.id}`,
-          `${josa(label, '은', '는')} 엔티티와 선 2개 이상으로 이어져야 합니다(현재 ${entityEdges}개)`,
+          msg('issue.relationshipDegree', { node: label, count: entityEdges }),
           [node.id],
         );
       }
       if (node.identifying && !hasWeak) {
-        warn(`identifying-no-weak:${node.id}`, `${label}에 약한 엔티티(이중 직사각형)가 연결되어 있지 않습니다`, [node.id]);
+        warn(`identifying-no-weak:${node.id}`, msg('issue.identifyingNoWeak', { node: label }), [node.id]);
       }
     } else if (node.kind === 'attribute') {
       const keyType = node.keyType ?? 'none';
-      if (keyType !== 'none' && (node.multivalued || node.derived)) {
-        const keyWord = keyType === 'key' ? '식별자(키)' : '부분 키';
-        const flags = [node.multivalued ? '다중값' : '', node.derived ? '유도' : ''].filter(Boolean).join(', ');
-        warn(
-          `attribute-key-conflict:${node.id}`,
-          `${josa(label, '이', '가')} ${keyWord}이면서 ${flags} 속성으로 표시되어 있습니다. 키는 단일값 저장 속성이어야 합니다`,
-          [node.id],
-        );
+      if (keyType !== 'none' && node.multivalued) {
+        const keyWord = msg(keyType === 'key' ? 'rules.keyWord.key' : 'rules.keyWord.partial');
+        warn(`attribute-key-conflict:${node.id}`, msg('issue.attributeKeyConflict', { node: label, keyWord }), [node.id]);
       }
     }
   }
@@ -544,7 +548,7 @@ export function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
     if (same.length < 2) continue;
     warn(
       `duplicate-entity-name:${name}`,
-      `'${plainName(same[0])}' 이름의 엔티티가 ${same.length}개 있습니다`,
+      msg('issue.duplicateEntityName', { name: plainName(same[0]), count: same.length }),
       same.map((n) => n.id),
     );
   }

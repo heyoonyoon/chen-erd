@@ -26,6 +26,8 @@ import {
   parseErdFile,
   safeFilename,
 } from '../export/exporters';
+import { APP_NAME, useT, type MessageKey } from '../i18n';
+import { LanguageSelect } from '../i18n/LanguageSelect';
 import { UserAvatars } from '../presence/Presence';
 import { navigate, roomUrl } from '../router';
 import { ui, useUi } from '../state/ui';
@@ -34,7 +36,6 @@ import { Toaster, toast } from './toast';
 import './TopBar.css';
 
 export const TITLE_MAX_LENGTH = 80;
-const SHARE_MESSAGE = '링크를 복사했습니다. 이 링크를 받은 사람은 누구나 함께 편집할 수 있습니다';
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const UNDO_KEYS = IS_MAC ? '⌘Z' : 'Ctrl+Z';
@@ -225,6 +226,7 @@ function stopKeys(e: ReactKeyboardEvent): void {
 // ───────────── 제목 ─────────────
 
 function TitleInput() {
+  const t = useT();
   const room = useRoom();
   const title = useTitle();
   // 입력 중일 때만 값이 있다. null이면 문서의 제목을 그대로 보여 준다(다른 사람이 바꾸면 바로 반영).
@@ -241,18 +243,18 @@ function TitleInput() {
     <label className="topbar-title">
       {/* 글자 길이만큼 입력창 너비를 맞추기 위한 보이지 않는 복사본 */}
       <span className="topbar-title-mirror" aria-hidden="true">
-        {value || '제목 없는 다이어그램'}
+        {value || t('doc.untitled')}
       </span>
       <input
         className="topbar-title-input"
         data-testid="title-input"
         type="text"
         value={value}
-        placeholder="제목 없는 다이어그램"
+        placeholder={t('doc.untitled')}
         maxLength={TITLE_MAX_LENGTH}
         spellCheck={false}
         autoComplete="off"
-        aria-label="다이어그램 제목"
+        aria-label={t('doc.titleLabel')}
         onFocus={() => {
           cancelled.current = false;
           setDraft(title);
@@ -285,18 +287,13 @@ function TitleInput() {
 
 type ShownStatus = 'connected' | 'connecting' | 'disconnected';
 
-const STATUS_TEXT: Record<ShownStatus, { label: string; hint: string }> = {
-  connected: { label: '저장됨', hint: '변경 내용은 서버에 자동으로 저장됩니다' },
-  connecting: { label: '연결 중', hint: '서버에 연결하고 있습니다' },
-  disconnected: { label: '연결 끊김', hint: '다시 연결되면 변경 내용이 자동으로 합쳐집니다' },
-};
-
 function ConnectionBadge() {
+  const t = useT();
   const status = useConnectionStatus();
   const synced = useSynced();
   // 연결은 됐지만 서버 문서를 아직 다 받지 못한 동안은 '연결 중'으로 보여 준다
   const shown: ShownStatus = status === 'connected' ? (synced ? 'connected' : 'connecting') : status;
-  const text = STATUS_TEXT[shown];
+  const text = { label: t(`status.${shown}.label`), hint: t(`status.${shown}.hint`) };
   return (
     <span
       className={`topbar-status topbar-status-${shown}`}
@@ -338,6 +335,7 @@ function MenuItem(props: {
 }
 
 function ExportMenu() {
+  const t = useT();
   const room = useRoom();
   const title = useTitle();
   const hasNodes = useNodes().length > 0;
@@ -351,18 +349,18 @@ function ExportMenu() {
   /** 그림 내보내기 하나를 실행하고 결과를 알린다. */
   const runImage = async (
     job: (nodes: ErdNode[], edges: ErdEdge[]) => Promise<boolean>,
-    done: string,
-    failed: string,
+    doneKey: MessageKey,
+    failedKey: MessageKey,
   ) => {
     setOpen(false);
     if (busy) return;
     setBusy(true);
     try {
       const ok = await job(room.nodes.getSnapshot(), room.edges.getSnapshot());
-      if (ok) toast(done);
-      else toast(failed, 'error');
+      if (ok) toast(t(doneKey));
+      else toast(t(failedKey), 'error');
     } catch (err) {
-      toast(errorMessage(err, failed), 'error');
+      toast(errorMessage(err, t(failedKey)), 'error');
     } finally {
       setBusy(false);
     }
@@ -374,9 +372,9 @@ function ExportMenu() {
     setOpen(false);
     try {
       downloadJson(room.doc, `${name()}.json`);
-      toast('JSON 백업을 저장했습니다');
+      toast(t('toast.jsonSaved'));
     } catch (err) {
-      toast(errorMessage(err, 'JSON 백업을 저장하지 못했습니다'), 'error');
+      toast(errorMessage(err, t('toast.jsonFailed')), 'error');
     }
   };
 
@@ -388,9 +386,9 @@ function ExportMenu() {
       ui().setSelection(added.map((n) => n.id));
       const rect = boundsOf(added);
       if (rect) zoomToRect(rect);
-      toast(`도형 ${file.nodes.length}개를 불러왔습니다`);
+      toast(t('toast.imported', { count: file.nodes.length }));
     } catch (err) {
-      toast(errorMessage(err, '파일을 불러오지 못했습니다'), 'error');
+      toast(errorMessage(err, t('toast.importFailed')), 'error');
     }
   };
 
@@ -404,11 +402,11 @@ function ExportMenu() {
     try {
       file = parseErdFile(await picked.text());
     } catch (err) {
-      toast(errorMessage(err, '파일을 읽지 못했습니다'), 'error');
+      toast(errorMessage(err, t('toast.readFailed')), 'error');
       return;
     }
     if (file.nodes.length === 0) {
-      toast('파일에 도형이 없습니다', 'error');
+      toast(t('toast.fileEmpty'), 'error');
       return;
     }
     const empty = room.nodes.getSnapshot().length === 0 && room.edges.getSnapshot().length === 0;
@@ -422,57 +420,57 @@ function ExportMenu() {
         type="button"
         className={`btn btn-ghost topbar-btn${open ? ' is-active' : ''}`}
         data-testid="export-button"
-        title="내보내기"
+        title={t('topbar.export')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         {icons.export}
-        <span className="topbar-label">내보내기</span>
+        <span className="topbar-label">{t('topbar.export')}</span>
         {icons.chevron}
       </button>
       {open && (
         <div className="panel topbar-menu" role="menu" data-testid="export-menu">
           <MenuItem
             icon={icons.image}
-            label="PNG로 저장"
+            label={t('export.savePng')}
             testId="export-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`), 'PNG를 저장했습니다', 'PNG를 저장하지 못했습니다')
+              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`), 'toast.pngSaved', 'toast.pngFailed')
             }
           />
           <MenuItem
             icon={icons.copy}
-            label="PNG 복사"
-            hint="문서에 붙여넣기"
+            label={t('export.copyPng')}
+            hint={t('export.copyPngHint')}
             testId="export-copy-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => copyPngToClipboard(n, ed), '클립보드에 복사했습니다', '클립보드에 복사하지 못했습니다')
+              runImage((n, ed) => copyPngToClipboard(n, ed), 'toast.clipboardCopied', 'toast.clipboardFailed')
             }
           />
           <MenuItem
             icon={icons.vector}
-            label="SVG로 저장"
+            label={t('export.saveSvg')}
             testId="export-svg"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`), 'SVG를 저장했습니다', 'SVG를 저장하지 못했습니다')
+              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`), 'toast.svgSaved', 'toast.svgFailed')
             }
           />
           <div className="topbar-menu-sep" role="separator" />
-          <MenuItem icon={icons.fileDown} label="JSON 백업 저장" testId="export-json" onSelect={saveJson} />
+          <MenuItem icon={icons.fileDown} label={t('export.saveJson')} testId="export-json" onSelect={saveJson} />
           <MenuItem
             icon={icons.fileUp}
-            label="JSON 불러오기…"
+            label={t('export.importJson')}
             testId="import-json"
             onSelect={() => {
               setOpen(false);
               fileRef.current?.click();
             }}
           />
-          {!hasNodes && <p className="topbar-menu-note">도형을 하나 이상 그리면 그림으로 내보낼 수 있습니다.</p>}
+          {!hasNodes && <p className="topbar-menu-note">{t('export.needShapes')}</p>}
         </div>
       )}
       <input
@@ -497,6 +495,9 @@ function ExportMenu() {
   );
 }
 
+/** 번역된 문장에서 파일 이름이 들어갈 자리를 찾기 위한 표시(화면에는 보이지 않는다) */
+const FILE_SLOT = '\u0000';
+
 /** 문서에 이미 내용이 있을 때 어떻게 불러올지 묻는 작은 확인 창 */
 function ImportDialog(props: {
   fileName: string;
@@ -504,8 +505,15 @@ function ImportDialog(props: {
   onChoose: (mode: 'replace' | 'merge') => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
   useDismiss(true, boxRef, props.onCancel);
+  // 파일 이름만 굵게 보이도록, 문장에서 이름이 들어갈 자리를 기준으로 앞뒤를 나눈다
+  const [before, after = ''] = t('import.confirm', {
+    file: FILE_SLOT,
+    shapes: { key: 'count.shapes', params: { count: props.file.nodes.length } },
+    lines: { key: 'count.lines', params: { count: props.file.edges.length } },
+  }).split(FILE_SLOT);
   return createPortal(
     <div className="topbar-modal-backdrop" onKeyDown={stopKeys} onKeyUp={stopKeys}>
       <div
@@ -517,12 +525,12 @@ function ImportDialog(props: {
         data-testid="import-dialog"
       >
         <h2 id="topbar-import-title" className="topbar-modal-title">
-          JSON 불러오기
+          {t('import.title')}
         </h2>
         <p className="topbar-modal-text">
+          {before}
           <strong className="topbar-modal-file">{props.fileName}</strong>
-          에 도형 {props.file.nodes.length}개와 선 {props.file.edges.length}개가 있습니다. 지금 다이어그램에 이미 내용이 있습니다.
-          어떻게 불러올지 골라 주세요.
+          {after}
         </p>
         <div className="topbar-modal-actions">
           <button
@@ -532,7 +540,7 @@ function ImportDialog(props: {
             autoFocus
             onClick={() => props.onChoose('merge')}
           >
-            기존 내용에 추가
+            {t('import.merge')}
           </button>
           <button
             type="button"
@@ -540,10 +548,10 @@ function ImportDialog(props: {
             data-testid="import-replace"
             onClick={() => props.onChoose('replace')}
           >
-            기존 내용을 지우고 불러오기
+            {t('import.replace')}
           </button>
           <button type="button" className="btn btn-ghost" data-testid="import-cancel" onClick={props.onCancel}>
-            취소
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -555,6 +563,7 @@ function ImportDialog(props: {
 // ───────────── 공유 ─────────────
 
 function ShareButton() {
+  const t = useT();
   const room = useRoom();
   // 클립보드를 쓸 수 없을 때만 링크를 직접 보여 준다
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
@@ -580,7 +589,7 @@ function ShareButton() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(url);
-      toast(SHARE_MESSAGE);
+      toast(t('toast.linkCopied'));
     } catch {
       setFallbackUrl(url);
     }
@@ -599,10 +608,10 @@ function ShareButton() {
       ok = false;
     }
     if (ok) {
-      toast(SHARE_MESSAGE);
+      toast(t('toast.linkCopied'));
       setFallbackUrl(null);
     } else {
-      toast('복사하지 못했습니다. 링크를 직접 선택해 복사해 주세요', 'error');
+      toast(t('toast.linkCopyFailed'), 'error');
     }
   };
 
@@ -612,18 +621,15 @@ function ShareButton() {
         type="button"
         className="btn btn-primary topbar-btn"
         data-testid="share-button"
-        title="함께 편집할 링크 복사"
+        title={t('topbar.shareTitle')}
         onClick={share}
       >
         {icons.link}
-        <span className="topbar-label">공유</span>
+        <span className="topbar-label">{t('topbar.share')}</span>
       </button>
       {fallbackUrl !== null && (
-        <div className="panel topbar-share" role="dialog" aria-label="공유 링크" data-testid="share-popover">
-          <p className="topbar-share-text">
-            링크를 자동으로 복사하지 못했습니다. 아래 링크를 복사해서 보내 주세요. 이 링크를 받은 사람은 누구나 함께 편집할 수
-            있습니다.
-          </p>
+        <div className="panel topbar-share" role="dialog" aria-label={t('share.linkLabel')} data-testid="share-popover">
+          <p className="topbar-share-text">{t('share.fallback')}</p>
           <div className="topbar-share-row">
             <input
               ref={inputRef}
@@ -632,12 +638,12 @@ function ShareButton() {
               type="text"
               readOnly
               value={fallbackUrl}
-              aria-label="공유 링크"
+              aria-label={t('share.linkLabel')}
               onKeyDown={stopKeys}
               onKeyUp={stopKeys}
             />
             <button type="button" className="btn" data-testid="share-copy" onClick={copyFromInput}>
-              복사
+              {t('common.copy')}
             </button>
           </div>
         </div>
@@ -649,6 +655,7 @@ function ShareButton() {
 // ───────────── 상단 바 ─────────────
 
 export function TopBar() {
+  const t = useT();
   const room = useRoom();
   const { canUndo, canRedo } = useUndoState();
   const { errors, warnings } = useIssueCount();
@@ -657,10 +664,14 @@ export function TopBar() {
   const helpOpen = useUi((s) => s.panels.help);
   const togglePanel = useUi((s) => s.togglePanel);
 
+  const errorCount = t('count.errors', { count: errors });
+  const warningCount = t('count.warnings', { count: warnings });
   const issueSummary =
     errors + warnings === 0
-      ? '검증: 문제 없음'
-      : `검증: ${[errors > 0 ? `오류 ${errors}개` : '', warnings > 0 ? `경고 ${warnings}개` : ''].filter(Boolean).join(', ')}`;
+      ? t('issues.summaryOk')
+      : t('issues.summary', {
+          summary: [errors > 0 ? errorCount : '', warnings > 0 ? warningCount : ''].filter(Boolean).join(t('list.separator')),
+        });
 
   return (
     <div className="topbar">
@@ -669,11 +680,11 @@ export function TopBar() {
           type="button"
           className="btn btn-ghost topbar-home"
           data-testid="home-button"
-          title="처음 화면으로"
+          title={t('common.home')}
           onClick={() => navigate('/')}
         >
           <Logo />
-          <span className="topbar-brand">Chen ERD</span>
+          <span className="topbar-brand">{APP_NAME}</span>
         </button>
         <span className="topbar-divider" aria-hidden="true" />
         <TitleInput />
@@ -683,8 +694,8 @@ export function TopBar() {
             type="button"
             className="btn btn-ghost btn-icon"
             data-testid="undo-button"
-            title={`실행 취소 (${UNDO_KEYS})`}
-            aria-label="실행 취소"
+            title={t('common.withShortcut', { label: t('common.undo'), keys: UNDO_KEYS })}
+            aria-label={t('common.undo')}
             disabled={!canUndo}
             onClick={() => undo(room)}
           >
@@ -694,8 +705,8 @@ export function TopBar() {
             type="button"
             className="btn btn-ghost btn-icon"
             data-testid="redo-button"
-            title={`다시 실행 (${REDO_KEYS})`}
-            aria-label="다시 실행"
+            title={t('common.withShortcut', { label: t('common.redo'), keys: REDO_KEYS })}
+            aria-label={t('common.redo')}
             disabled={!canRedo}
             onClick={() => redo(room)}
           >
@@ -714,9 +725,9 @@ export function TopBar() {
           onClick={() => togglePanel('issues')}
         >
           {icons.check}
-          <span className="topbar-label">검증</span>
+          <span className="topbar-label">{t('issues.title')}</span>
           {errors > 0 && (
-            <span className="topbar-badge topbar-badge-error" data-testid="issues-badge-error" aria-label={`오류 ${errors}개`}>
+            <span className="topbar-badge topbar-badge-error" data-testid="issues-badge-error" aria-label={errorCount}>
               {errors > 99 ? '99+' : errors}
             </span>
           )}
@@ -724,7 +735,7 @@ export function TopBar() {
             <span
               className="topbar-badge topbar-badge-warning"
               data-testid="issues-badge-warning"
-              aria-label={`경고 ${warnings}개`}
+              aria-label={warningCount}
             >
               {warnings > 99 ? '99+' : warnings}
             </span>
@@ -734,21 +745,22 @@ export function TopBar() {
           type="button"
           className={`btn btn-ghost topbar-btn${legendOpen ? ' is-active' : ''}`}
           data-testid="legend-button"
-          title="표기법 보기"
+          title={t('topbar.legendTitle')}
           aria-pressed={legendOpen}
           onClick={() => togglePanel('legend')}
         >
           {icons.legend}
-          <span className="topbar-label">표기법</span>
+          <span className="topbar-label">{t('topbar.legend')}</span>
         </button>
         <ExportMenu />
         <ShareButton />
+        <LanguageSelect variant="compact" className="topbar-language" />
         <button
           type="button"
           className={`btn btn-ghost btn-icon${helpOpen ? ' is-active' : ''}`}
           data-testid="help-button"
-          title="도움말과 단축키"
-          aria-label="도움말"
+          title={t('topbar.helpTitle')}
+          aria-label={t('topbar.help')}
           aria-pressed={helpOpen}
           onClick={() => togglePanel('help')}
         >

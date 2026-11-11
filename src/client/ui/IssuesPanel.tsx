@@ -7,6 +7,7 @@ import { validateDiagram } from '../../shared/rules';
 import type { ErdEdge, ErdNode, Issue, Point } from '../../shared/types';
 import { centerOn } from '../canvas/ViewportControls';
 import { useEdges, useNodes } from '../collab/hooks';
+import { tSentence, useT } from '../i18n';
 import { ui } from '../state/ui';
 import './IssuesPanel.css';
 
@@ -96,6 +97,7 @@ function CloseIcon() {
 }
 
 export function IssuesPanel() {
+  const t = useT();
   const nodes = useNodes();
   const edges = useEdges();
   const issues = useMemo(() => issuesFor(nodes, edges), [nodes, edges]);
@@ -134,14 +136,14 @@ export function IssuesPanel() {
   };
 
   return (
-    <section className="panel issues-panel" data-testid="issues-panel" aria-label="검증">
+    <section className="panel issues-panel" data-testid="issues-panel" aria-label={t('issues.title')}>
       <header className="issues-header">
-        <h2 className="issues-title">검증</h2>
+        <h2 className="issues-title">{t('issues.title')}</h2>
         <button
           type="button"
           className="btn btn-ghost btn-icon issues-close"
-          aria-label="닫기"
-          title="닫기"
+          aria-label={t('common.close')}
+          title={t('common.close')}
           data-testid="issues-close"
           onClick={() => ui().togglePanel('issues', false)}
         >
@@ -152,18 +154,18 @@ export function IssuesPanel() {
       {issues.length === 0 ? (
         <p className="issues-empty" data-testid="issues-empty">
           <OkIcon />
-          <span>표기법에 어긋난 부분이 없습니다</span>
+          <span>{t('issues.empty')}</span>
         </p>
       ) : (
         <>
           <div className="issues-summary" data-testid="issues-summary">
             <span className={`issues-count${errors > 0 ? ' is-error' : ''}`} data-testid="issues-error-count">
               <ErrorIcon />
-              오류 {errors}개
+              {t('count.errors', { count: errors })}
             </span>
             <span className={`issues-count${warnings > 0 ? ' is-warning' : ''}`} data-testid="issues-warning-count">
               <WarningIcon />
-              경고 {warnings}개
+              {t('count.warnings', { count: warnings })}
             </span>
           </div>
           <ul className="issues-list">
@@ -178,8 +180,8 @@ export function IssuesPanel() {
                   onClick={() => focusIssue(issue)}
                 >
                   {issue.severity === 'error' ? <ErrorIcon /> : <WarningIcon />}
-                  <span className="sr-only">{issue.severity === 'error' ? '오류' : '경고'}</span>
-                  <span className="issues-message">{issue.message}</span>
+                  <span className="sr-only">{issue.severity === 'error' ? t('common.error') : t('common.warning')}</span>
+                  <span className="issues-message">{tSentence(issue.message)}</span>
                 </button>
               </li>
             ))}

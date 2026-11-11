@@ -82,10 +82,11 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('노드 하나', () => {
-  it('종류 격자에 12개가 있고 현재 종류를 강조한다', () => {
+  it('종류 격자에 11개가 있고 현재 종류를 강조한다', () => {
     setup([n('학생', 'entity', { weak: true })], [], ['학생']);
     expect(screen.getByTestId('inspector')).toBeTruthy();
-    expect(screen.getAllByTestId(/^inspector-preset-/)).toHaveLength(12);
+    expect(screen.getAllByTestId(/^inspector-preset-/)).toHaveLength(11);
+    expect(screen.queryByTestId('inspector-preset-derived-attribute')).toBeNull();
     expect(screen.getByTestId('inspector-preset-weak-entity').className).toContain('is-active');
     expect(screen.getByTestId('inspector-preset-entity').className).not.toContain('is-active');
   });
@@ -112,17 +113,31 @@ describe('노드 하나', () => {
     expect(yNode('a').has('weak')).toBe(false);
   });
 
-  it('속성 옵션: 식별자 표시, 다중값, 유도', () => {
+  it('속성 옵션: 식별자 표시, 다중값', () => {
     setup([n('a', 'attribute')], [], ['a']);
     fireEvent.click(screen.getByTestId('inspector-key-partial'));
     expect(yNode('a').get('keyType')).toBe('partial');
     fireEvent.click(screen.getByTestId('inspector-key-none'));
     expect(yNode('a').has('keyType')).toBe(false);
     fireEvent.click(screen.getByTestId('inspector-multivalued'));
-    fireEvent.click(screen.getByTestId('inspector-derived'));
-    expect(yNode('a').toJSON()).toMatchObject({ multivalued: true, derived: true });
-    fireEvent.click(screen.getByTestId('inspector-derived'));
+    expect(yNode('a').toJSON()).toMatchObject({ multivalued: true });
+    fireEvent.click(screen.getByTestId('inspector-multivalued'));
+    expect(yNode('a').has('multivalued')).toBe(false);
+    // 유도 속성은 화면에서 켜고 끌 수 없다
+    expect(screen.queryByTestId('inspector-derived')).toBeNull();
+  });
+
+  it('예전에 만든 유도 속성은 그대로 두고, 종류를 바꾸면 derived를 지운다', () => {
+    setup([n('a', 'attribute', { derived: true, text: '평점', x: 100, y: 100, w: 120, h: 50 })], [], ['a']);
+    // 고를 수 있는 종류로는 보통 속성으로 보인다
+    expect(screen.getByTestId('inspector-preset-attribute').className).toContain('is-active');
+    expect(screen.queryByTestId('inspector-derived')).toBeNull();
+    // 다른 옵션을 고쳐도 derived는 건드리지 않는다
+    fireEvent.click(screen.getByTestId('inspector-key-key'));
+    expect(yNode('a').toJSON()).toMatchObject({ keyType: 'key', derived: true });
+    fireEvent.click(screen.getByTestId('inspector-preset-multivalued-attribute'));
     expect(yNode('a').has('derived')).toBe(false);
+    expect(yNode('a').get('multivalued')).toBe(true);
   });
 
   it('관계는 식별 관계 토글, 특수화 원은 글자 대신 d / o 선택', () => {

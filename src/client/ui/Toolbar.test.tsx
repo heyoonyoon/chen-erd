@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PRESET_ORDER, placeTool, type Tool } from '../../shared/types';
+import { t } from '../i18n';
 import { ui, useUi } from '../state/ui';
 import { Legend, LEGEND_SECTIONS } from './Legend';
 import { shortcutLabel, Toolbar, TOOL_GROUPS } from './Toolbar';
@@ -23,7 +24,7 @@ describe('Toolbar', () => {
       ['select', 'pan'],
       ['place:entity', 'place:weak-entity'],
       ['place:relationship', 'place:identifying-relationship'],
-      ['place:attribute', 'place:key-attribute', 'place:partial-key-attribute', 'place:multivalued-attribute', 'place:derived-attribute'],
+      ['place:attribute', 'place:key-attribute', 'place:partial-key-attribute', 'place:multivalued-attribute'],
       ['place:spec-d', 'place:spec-o'],
       ['place:note'],
       ['connect', 'connect-double'],
@@ -100,12 +101,12 @@ describe('Legend', () => {
     render(<Legend />);
     const legend = screen.getByTestId('legend');
     expect(legend.textContent).toContain('표기법 안내');
-    expect(LEGEND_SECTIONS.map((s) => s.title)).toEqual(['엔티티', '관계', '속성', '선', '특수화']);
+    expect(LEGEND_SECTIONS.map((s) => t(s.title))).toEqual(['엔티티', '관계', '속성', '선', '특수화']);
     for (const section of LEGEND_SECTIONS) {
       for (const row of section.rows) {
-        expect(legend.textContent).toContain(row.name);
+        expect(legend.textContent).toContain(t(row.name));
         expect(legend.textContent).toContain(row.nameEn);
-        expect(legend.textContent).toContain(row.description);
+        expect(legend.textContent).toContain(t(row.description));
       }
     }
     expect(legend.textContent).toContain('Chen 표기법 기준');

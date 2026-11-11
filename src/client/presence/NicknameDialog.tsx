@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { USER_COLORS } from '../../shared/types';
 import { useRoom } from '../collab/hooks';
+import { useT, type MessageKey } from '../i18n';
 import { getIdentity, saveIdentity } from '../identity';
 import { NAME_MAX, initialOf, normalizeName, safeColor } from './presenceMath';
 import './NicknameDialog.css';
@@ -28,7 +29,18 @@ function closeDialog(): void {
 }
 
 /** USER_COLORS와 같은 순서의 색 이름(읽기 도구용) */
-const COLOR_NAMES = ['빨강', '주황', '노랑', '초록', '청록', '하늘', '파랑', '보라', '분홍', '갈색'];
+const COLOR_NAMES: MessageKey[] = [
+  'color.red',
+  'color.orange',
+  'color.yellow',
+  'color.green',
+  'color.teal',
+  'color.sky',
+  'color.blue',
+  'color.purple',
+  'color.pink',
+  'color.brown',
+];
 
 export function NicknameDialog() {
   const room = useRoom();
@@ -46,6 +58,7 @@ export function NicknameDialog() {
 }
 
 function NicknameForm({ forced }: { forced: boolean }) {
+  const t = useT();
   const room = useRoom();
   const [initial] = useState(getIdentity);
   const [name, setName] = useState(initial.name);
@@ -145,10 +158,10 @@ function NicknameForm({ forced }: { forced: boolean }) {
         data-testid="nickname-dialog"
       >
         <h2 id={titleId} className="nickname-title">
-          이름을 알려 주세요
+          {t('nickname.title')}
         </h2>
         <p id={hintId} className="nickname-hint">
-          다른 팀원 화면에 이 이름으로 표시됩니다
+          {t('nickname.hint')}
         </p>
 
         <div className="nickname-row">
@@ -162,8 +175,8 @@ function NicknameForm({ forced }: { forced: boolean }) {
             type="text"
             value={name}
             maxLength={NAME_MAX}
-            placeholder="이름"
-            aria-label="이름"
+            placeholder={t('nickname.name')}
+            aria-label={t('nickname.name')}
             autoFocus
             autoComplete="off"
             spellCheck={false}
@@ -172,7 +185,7 @@ function NicknameForm({ forced }: { forced: boolean }) {
           />
         </div>
 
-        <div className="nickname-label">색</div>
+        <div className="nickname-label">{t('nickname.color')}</div>
         <div className="nickname-colors">
           {USER_COLORS.map((c, i) => (
             <button
@@ -182,8 +195,8 @@ function NicknameForm({ forced }: { forced: boolean }) {
               data-testid="nickname-color"
               data-color={c}
               style={{ background: c }}
-              title={COLOR_NAMES[i] ?? c}
-              aria-label={COLOR_NAMES[i] ?? c}
+              title={COLOR_NAMES[i] ? t(COLOR_NAMES[i]) : c}
+              aria-label={COLOR_NAMES[i] ? t(COLOR_NAMES[i]) : c}
               aria-pressed={c === color}
               onClick={() => setColor(c)}
             />
@@ -192,7 +205,7 @@ function NicknameForm({ forced }: { forced: boolean }) {
 
         <div className="nickname-actions">
           <button type="button" className="btn btn-primary" data-testid="nickname-submit" disabled={!clean} onClick={submit}>
-            확인
+            {t('common.confirm')}
           </button>
         </div>
       </div>

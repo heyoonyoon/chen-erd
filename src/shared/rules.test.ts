@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { canConnect, defaultEdgeProps, edgeCanBeDouble, edgeHasCardinality, specRoles, validateDiagram } from './rules';
-import type { ErdEdge, ErdNode, Issue, NodeKind } from './types';
+import { formatMessage } from '../client/i18n/format';
+import { ko } from '../client/i18n/locales/ko';
+import type { Message } from './messages';
+import {
+  canConnect as canConnectRaw,
+  defaultEdgeProps,
+  edgeCanBeDouble,
+  edgeHasCardinality,
+  specRoles,
+  validateDiagram as validateDiagramRaw,
+} from './rules';
+import type { ErdEdge, ErdNode, Issue as RawIssue, NodeKind } from './types';
+
+// rules는 문장 대신 메시지(키와 값)를 돌려준다. 아래 테스트는 한국어 사전으로 푼 문장을 확인한다.
+const say = (m: Message): string => formatMessage(ko, 'ko', m.key, m.params);
+
+type Issue = Omit<RawIssue, 'message'> & { message: string };
+
+function canConnect(...args: Parameters<typeof canConnectRaw>): { ok: boolean; reason?: string } {
+  const check = canConnectRaw(...args);
+  return check.reason ? { ok: check.ok, reason: say(check.reason) } : { ok: check.ok };
+}
+
+function validateDiagram(nodes: ErdNode[], edges: ErdEdge[]): Issue[] {
+  return validateDiagramRaw(nodes, edges).map((issue) => ({ ...issue, message: say(issue.message) }));
+}
 
 // ───────────────────────── 테스트용 도형 만들기 ─────────────────────────
 
@@ -787,7 +811,7 @@ describe('validateDiagram: warning', () => {
     expect(byRule(validateDiagram(nodes, edges), 'entity-isolated')).toEqual([]);
   });
 
-  it('키이면서 다중값이거나 유도인 속성', () => {
+  it('키이면서 다중값인 속성', () => {
     const base = teamPlayer();
     const multi = validateDiagram(
       base.nodes.map((n) => (n.id === 'Team_ID' ? { ...n, multivalued: true } : n)),
@@ -797,26 +821,27 @@ describe('validateDiagram: warning', () => {
       {
         id: 'attribute-key-conflict:Team_ID',
         severity: 'warning',
-        message: "'Team_ID' 속성이 식별자(키)이면서 다중값 속성으로 표시되어 있습니다. 키는 단일값 저장 속성이어야 합니다",
+        message: "'Team_ID' 속성이 식별자(키)이면서 다중값 속성으로 표시되어 있습니다. 키는 단일값 속성이어야 합니다",
         elementIds: ['Team_ID'],
       },
     ]);
-    const derived = validateDiagram(
-      base.nodes.map((n) => (n.id === 'Team_ID' ? { ...n, derived: true } : n)),
-      base.edges,
-    );
-    expect(derived[0].message).toContain('유도 속성으로');
 
     const order = orderLine();
     const partial = validateDiagram(
-      order.nodes.map((n) => (n.id === 'Line_no' ? { ...n, derived: true, multivalued: true } : n)),
+      order.nodes.map((n) => (n.id === 'Line_no' ? { ...n, multivalued: true } : n)),
       order.edges,
     );
     expect(ids(partial)).toEqual(['attribute-key-conflict:Line_no']);
-    expect(partial[0].message).toContain('부분 키이면서 다중값, 유도 속성으로');
+    expect(partial[0].message).toContain('부분 키이면서 다중값 속성으로');
   });
 
-  it("keyType이 'none'이거나 없는 다중값, 유도 속성은 경고하지 않는다", () => {
+  it('예전에 만든 유도 속성(derived)은 검증에서 따로 다루지 않는다', () => {
+    const base = teamPlayer();
+    const nodes = base.nodes.map((n) => (n.id === 'Team_ID' ? { ...n, derived: true } : n));
+    expect(validateDiagram(nodes, base.edges)).toEqual([]);
+  });
+
+  it("keyType이 'none'이거나 없는 다중값 속성은 경고하지 않는다", () => {
     const base = teamPlayer();
     const nodes = base.nodes.map((n) => (n.id === 'Player_name' ? { ...n, keyType: 'none' as const, multivalued: true, derived: true } : n));
     expect(validateDiagram(nodes, base.edges)).toEqual([]);

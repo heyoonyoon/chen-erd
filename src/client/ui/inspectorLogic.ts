@@ -13,6 +13,7 @@ import {
 } from '../../shared/types';
 import { edgeShapeOf } from '../../shared/geometry';
 import type { NodePatch } from '../collab/docOps';
+import { presetLabel, t } from '../i18n';
 
 export interface NodePatchEntry {
   id: string;
@@ -154,11 +155,11 @@ export function normalizeText(raw: string): string {
   return raw.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
 }
 
-/** 도형을 한 줄로 부르는 이름. 글자가 비어 있으면 종류 이름. */
+/** 도형을 한 줄로 부르는 이름. 글자가 비어 있으면 현재 언어의 종류 이름. */
 export function nodeLabel(node: ErdNode | undefined): string {
-  if (!node) return '(없는 도형)';
+  if (!node) return t('inspector.missingNode');
   const text = node.kind === 'spec' ? '' : node.text.replace(/\s+/g, ' ').trim();
-  return text || NODE_PRESETS[presetOf(node)].label;
+  return text || presetLabel(presetOf(node));
 }
 
 /** 선이 무엇과 무엇을 잇는지. 인스펙터가 보여 줄 항목과 안내 문구를 고르는 데 쓴다. */

@@ -2,6 +2,7 @@
  * 첫 화면. 흰 바탕에 무채색 한 벌로 그린다.
  * 색은 제품 화면 예시와 포인터 이름표에만 들어가고 나머지는 한 벌의 무채색 단계로 그린다.
  * 간격은 모두 4의 배수다.
+ * 움직임은 나타날 때 한 번만, 짧게 쓴다. 되풀이되는 것은 제품 화면 예시의 장면 하나뿐이다.
  */
 .home {
   --h-bg: #ffffff;
@@ -17,6 +18,8 @@
   --h-accent: #1d4ed8;
   --h-negative: #dc2626;
   --h-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 선이 그려지는 움직임에는 처음과 끝이 고른 곡선을 쓴다. 앞이 빠른 곡선은 선이 한 번에 나타난 것처럼 보인다 */
+  --h-ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
   --h-max: 1200px;
   --h-pad: 32px;
   height: 100%;
@@ -32,12 +35,23 @@
 /* ── 상단 ── */
 .home-nav { position: sticky; top: 0; z-index: 10; background: var(--h-bg); border-bottom: 1px solid var(--h-line); }
 .home-nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; max-width: var(--h-max); margin: 0 auto; padding: 0 var(--h-pad); }
+.home-nav-start { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.home-nav-end { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .home-brand { display: flex; align-items: center; gap: 8px; }
 .home-logo { display: block; flex: 0 0 auto; }
 .home-brand-name { font-size: 16px; line-height: 1; font-weight: 600; }
+/* GitHub 로고와 별 수 */
+.home-gh { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 1px solid var(--h-line); border-radius: 8px; color: var(--h-text-2); font-size: 13px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; text-decoration: none; white-space: nowrap; transition: background-color 150ms var(--h-ease), color 150ms var(--h-ease); }
+.home-gh:hover { background: var(--h-raised); color: var(--h-text); }
+.home-gh > svg { display: block; flex: 0 0 auto; color: var(--h-text); }
 .home-me-chip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 6px; border: 1px solid var(--h-line); border-radius: 10px; background: var(--h-card); cursor: pointer; transition: background-color 150ms var(--h-ease); }
 .home-me-chip:hover { background: var(--h-raised); }
 .home-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 500; }
+/* 언어 선택. 방 화면과 같은 부품이고 겉모양만 첫 화면의 무채색 칩에 맞춘다 */
+.home .home-lang .language-select-button { gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--h-line); border-radius: 10px; background: var(--h-card); color: var(--h-text); font-weight: 500; transition: background-color 150ms var(--h-ease); }
+.home .home-lang .language-select-button:hover, .home .home-lang.is-open .language-select-button { background: var(--h-raised); }
+.home .home-lang .language-select-button:focus-visible { border-color: var(--h-line); box-shadow: none; outline: 2px solid var(--h-accent); outline-offset: 2px; }
+.home .home-lang .language-select-chevron { color: var(--h-muted); }
 .home-me-chip-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 
 /* ── 머리 ── */
@@ -51,12 +65,23 @@
 .home-create:active { transform: scale(0.98); }
 .home-link { padding: 0; border: 0; background: none; color: var(--h-text-2) !important; font-weight: 500 !important; text-decoration: underline; text-decoration-color: var(--h-line-strong); text-underline-offset: 4px; cursor: pointer; transition: color 150ms var(--h-ease); }
 .home-link:hover { color: var(--h-text) !important; }
-.home-hero-copy, .home-pv { animation: home-enter 400ms var(--h-ease) both; }
-.home-pv { animation-delay: 60ms; }
+/* 처음 열릴 때 제목, 설명, 버튼, 화면 예시가 차례로 올라온다 */
+.home-title, .home-lead, .home-actions, .home-pv { animation: home-enter 600ms var(--h-ease) both; }
+.home-lead { animation-delay: 80ms; }
+.home-actions { animation-delay: 160ms; }
+.home-pv { animation-delay: 240ms; }
 @keyframes home-enter {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes home-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 화면에 들어올 때 한 번 올라오는 구역. is-in은 motion.tsx가 붙인다 */
+.home-reveal { opacity: 0; transform: translateY(16px); transition: opacity 600ms var(--h-ease), transform 600ms var(--h-ease); transition-delay: var(--reveal-delay, 0ms); }
+.home-reveal.is-in { opacity: 1; transform: none; }
 
 /* ── 제품 화면 예시: 색이 들어가는 유일한 곳 ── */
 .home-pv { margin: 0; border: 1px solid var(--h-line-strong); border-radius: 16px; background: var(--h-paper); overflow: hidden; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.06); }
@@ -74,10 +99,28 @@
 .home-pv-canvas { overflow: hidden; background-color: var(--h-paper); background-image: radial-gradient(rgba(23, 23, 23, 0.12) 1px, transparent 1px); background-size: 16px 16px; }
 .home-pv-stage { position: relative; }
 .home-pv-stage > svg { display: block; width: 100%; height: auto; }
+/* 장면: 한 바퀴가 끝나면 무대가 흐려졌다가 처음 상태로 다시 나타난다 */
+.home-pv-stage.is-entering { animation: home-fade 400ms var(--h-ease); }
+.home-pv-stage.is-leaving { opacity: 0; transition: opacity 400ms var(--h-ease); }
+/* 새로 놓인 도형은 제자리에서 살짝 커지며 나타나고, 새 선은 시작한 쪽에서부터 그어진다 */
+.home-pv-node.is-new { transform-box: fill-box; transform-origin: center; animation: home-pv-pop 400ms var(--h-ease) both; }
+.home-pv-edge.is-new path { stroke-dasharray: 420; stroke-dashoffset: 420; animation: home-pv-draw 500ms var(--h-ease-draw) forwards; }
+.home-pv-edge.is-new text { animation: home-fade 300ms var(--h-ease) 300ms both; }
+.home-pv-pick.is-new { animation: home-fade 300ms var(--h-ease) both; }
+@keyframes home-pv-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes home-pv-draw {
+  to { stroke-dashoffset: 0; }
+}
 
 /* 이름표가 달린 포인터 */
 .home-cursor { position: absolute; width: 0; height: 0; pointer-events: none; }
 .home-cursor > svg { position: absolute; left: -2px; top: -2px; }
+.home-pv-stage.is-live .home-cursor { transition: left 600ms var(--h-ease), top 600ms var(--h-ease); }
+/* 도형을 끌어 옮길 때는 프레임마다 위치를 정해 주므로 따라가는 효과를 끈다 */
+.home-pv-stage .home-cursor.is-dragging { transition: none; }
 .home-cursor-name { position: absolute; left: 12px; top: 16px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; border-radius: 8px; border-top-left-radius: 4px; color: #fff; font-size: 12px; line-height: 20px; font-weight: 500; white-space: nowrap; }
 
 /* ── 본문 ── */
@@ -150,11 +193,23 @@
 .home-sheet-item > svg { display: block; }
 .home-sheet-name { margin-top: 8px; font-size: 13px; line-height: 20px; font-weight: 500; text-align: center; }
 .home-sheet-en { font-size: 12px; line-height: 16px; color: var(--h-muted); text-align: center; }
-
-/* 바닥 */
-.home-foot { border-top: 1px solid var(--h-line); }
-.home-foot-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; max-width: var(--h-max); margin: 0 auto; padding: 24px var(--h-pad); font-size: 12px; line-height: 16px; color: var(--h-muted); }
-.home-foot-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; color: var(--h-text); }
+/*
+ * 표의 한 줄이 화면에 들어오면 도형의 선이 그려진다. HomeNotation.tsx가 선마다 길이(--len)와 순번(--k)을,
+ * 도형마다 순번(--i)을 넣어 주고 그릴 준비가 되면 is-armed를, 화면에 들어오면 is-in을 붙인다.
+ * 점선(is-dashed)은 선 길이로 감추면 무늬가 사라지므로 왼쪽부터 드러낸다.
+ */
+.home-sheet-row.is-armed .home-sheet-group,
+.home-sheet-row.is-armed .home-sheet-item text,
+.home-sheet-row.is-armed .home-sheet-name,
+.home-sheet-row.is-armed .home-sheet-en { opacity: 0; }
+.home-sheet-row.is-armed .home-sheet-item :is(rect, polygon, ellipse, circle, line):not(.is-dashed) { stroke-dasharray: calc(var(--len) * 1px); stroke-dashoffset: calc(var(--len) * 1px); }
+.home-sheet-row.is-armed .home-sheet-item .is-dashed { clip-path: inset(-4px 100% -4px -4px); }
+.home-sheet-row.is-in .home-sheet-group { opacity: 1; transition: opacity 400ms var(--h-ease); }
+.home-sheet-row.is-in .home-sheet-item :is(rect, polygon, ellipse, circle, line):not(.is-dashed) { stroke-dashoffset: 0; transition: stroke-dashoffset 700ms var(--h-ease-draw) calc(var(--i) * 110ms + var(--k) * 140ms); }
+.home-sheet-row.is-in .home-sheet-item .is-dashed { clip-path: inset(-4px); transition: clip-path 700ms var(--h-ease-draw) calc(var(--i) * 110ms + var(--k) * 140ms); }
+.home-sheet-row.is-in .home-sheet-item text,
+.home-sheet-row.is-in .home-sheet-name,
+.home-sheet-row.is-in .home-sheet-en { opacity: 1; transition: opacity 400ms var(--h-ease) calc(var(--i) * 110ms + 500ms); }
 
 /* ── 좁은 화면 ── */
 @media (max-width: 1080px) {
@@ -178,9 +233,18 @@
   .home-pv-body { grid-template-columns: minmax(0, 1fr); }
   .home-me-chip-name { display: none; }
   .home-me-chip { padding: 0 6px; }
+  /* 좁은 화면의 상단에는 지구본과 화살표만 남긴다 */
+  .home .home-lang .language-select-button { gap: 4px; padding: 0 8px; }
+  .home .home-lang .language-select-value { display: none; }
+  .home-nav-start { gap: 12px; }
   .home-recent-time { min-width: 0; }
 }
+/* 움직임을 줄이도록 설정했으면 처음부터 완성된 화면을 보여 준다 */
 @media (prefers-reduced-motion: reduce) {
-  .home-hero-copy, .home-pv { animation: none; }
-  .home-create, .home-btn, .home-me-chip, .home-recent-item { transition: none; }
+  .home-title, .home-lead, .home-actions, .home-pv { animation: none; }
+  .home-reveal { opacity: 1; transform: none; transition: none; }
+  .home-pv-stage.is-entering, .home-pv-node.is-new, .home-pv-edge.is-new path, .home-pv-edge.is-new text, .home-pv-pick.is-new { animation: none; }
+  .home-pv-edge.is-new path { stroke-dasharray: none; stroke-dashoffset: 0; }
+  .home-pv-stage.is-live .home-cursor { transition: none; }
+  .home-create, .home-btn, .home-me-chip, .home-lang .language-select-button, .home-gh, .home-recent-item { transition: none; }
 }

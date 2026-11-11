@@ -17,4 +17,4 @@
 .room-blocked { width: 360px; max-width: 100%; padding: 20px; box-shadow: var(--shadow-lg); }
 .room-blocked-title { font-size: 16px; font-weight: 700; }
 .room-blocked-body { margin-top: 6px; color: var(--text-dim); line-height: 1.5; }
-.room-blocked-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.room-blocked-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }

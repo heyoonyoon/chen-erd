@@ -8,6 +8,7 @@ import { diagramBounds } from '../../shared/geometry';
 import { MAX_ZOOM, MIN_ZOOM } from '../../shared/types';
 import type { ErdEdge, ErdNode, Point, Rect, Viewport } from '../../shared/types';
 import { useEdges, useNodes } from '../collab/hooks';
+import { useT } from '../i18n';
 import { ui, useUi } from '../state/ui';
 import { clientToScreen, screenToWorld, visibleWorldRect } from './coords';
 import {
@@ -236,8 +237,9 @@ function IconButton(props: {
 /** 전체 보기 버튼. 노드 목록을 구독하는 부분을 따로 떼어 나머지 버튼이 다시 그려지지 않게 한다. */
 function FitButton() {
   const nodes = useNodes();
+  const t = useT();
   return (
-    <IconButton label="전체 보기" testId="zoom-fit" onClick={() => zoomToRect(diagramBounds(nodes, 0))}>
+    <IconButton label={t('common.fit')} testId="zoom-fit" onClick={() => zoomToRect(diagramBounds(nodes, 0))}>
       <Icon>
         <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
       </Icon>
@@ -252,10 +254,11 @@ export function ZoomControls() {
   const snapEnabled = useUi((s) => s.snapEnabled);
   const minimapOpen = useUi((s) => s.panels.minimap);
   const percent = Math.round(zoom * 100);
+  const t = useT();
 
   return (
-    <div className="panel zoom-controls" role="toolbar" aria-label="화면 확대와 보기 설정">
-      <IconButton label="축소" testId="zoom-out" disabled={zoom <= MIN_ZOOM} onClick={() => zoomBy(1 / ZOOM_STEP)}>
+    <div className="panel zoom-controls" role="toolbar" aria-label={t('view.toolbarLabel')}>
+      <IconButton label={t('common.zoomOut')} testId="zoom-out" disabled={zoom <= MIN_ZOOM} onClick={() => zoomBy(1 / ZOOM_STEP)}>
         <Icon>
           <path d="M3.5 8h9" />
         </Icon>
@@ -263,14 +266,14 @@ export function ZoomControls() {
       <button
         type="button"
         className="btn btn-ghost zoom-controls-level"
-        title="100%로 되돌리기"
-        aria-label={`현재 배율 ${percent}%, 100%로 되돌리기`}
+        title={t('view.zoomReset')}
+        aria-label={t('view.zoomResetLabel', { percent })}
         data-testid="zoom-level"
         onClick={() => setZoom(1)}
       >
         {percent}%
       </button>
-      <IconButton label="확대" testId="zoom-in" disabled={zoom >= MAX_ZOOM} onClick={() => zoomBy(ZOOM_STEP)}>
+      <IconButton label={t('common.zoomIn')} testId="zoom-in" disabled={zoom >= MAX_ZOOM} onClick={() => zoomBy(ZOOM_STEP)}>
         <Icon>
           <path d="M3.5 8h9M8 3.5v9" />
         </Icon>
@@ -278,8 +281,8 @@ export function ZoomControls() {
       <FitButton />
       <span className="zoom-controls-sep" aria-hidden="true" />
       <IconButton
-        label="격자"
-        title={showGrid ? '격자 끄기' : '격자 켜기'}
+        label={t('view.grid')}
+        title={showGrid ? t('view.gridOff') : t('view.gridOn')}
         testId="toggle-grid"
         pressed={showGrid}
         onClick={() => ui().setShowGrid(!ui().showGrid)}
@@ -299,8 +302,8 @@ export function ZoomControls() {
         </Icon>
       </IconButton>
       <IconButton
-        label="정렬 붙기"
-        title={snapEnabled ? '정렬 붙기 끄기' : '정렬 붙기 켜기'}
+        label={t('view.snap')}
+        title={snapEnabled ? t('view.snapOff') : t('view.snapOn')}
         testId="toggle-snap"
         pressed={snapEnabled}
         onClick={() => ui().setSnapEnabled(!ui().snapEnabled)}
@@ -313,8 +316,8 @@ export function ZoomControls() {
         </Icon>
       </IconButton>
       <IconButton
-        label="미니맵"
-        title={minimapOpen ? '미니맵 끄기' : '미니맵 켜기'}
+        label={t('view.minimap')}
+        title={minimapOpen ? t('view.minimapOff') : t('view.minimapOn')}
         testId="toggle-minimap"
         pressed={minimapOpen}
         onClick={() => ui().togglePanel('minimap')}
@@ -381,6 +384,7 @@ const MinimapContent = memo(function MinimapContent({ nodes, edges }: { nodes: E
 
 /** 오른쪽 아래의 미니맵. 전체 다이어그램과 현재 보이는 영역을 보여 주고, 클릭/드래그하면 그 위치로 이동한다. */
 export function Minimap() {
+  const t = useT();
   const nodes = useNodes();
   const edges = useEdges();
   const viewport = useUi((s) => s.viewport);
@@ -427,7 +431,7 @@ export function Minimap() {
         width={MINIMAP_W}
         height={MINIMAP_H}
         role="img"
-        aria-label="미니맵"
+        aria-label={t('view.minimap')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

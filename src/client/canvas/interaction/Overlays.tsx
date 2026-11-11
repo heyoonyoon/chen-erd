@@ -5,7 +5,9 @@
 import { memo, useMemo, type ReactNode } from 'react';
 import { anchorPoint, boundaryPoint, computeEdgeGeometry, nodeCenter, nodeRect, siblingInfo, unionBounds } from '../../../shared/geometry';
 import { NODE_PRESETS, SIDES, STYLE, presetOfTool, type ErdNode, type NodePreset, type Point, type Rect, type Side } from '../../../shared/types';
+import { presetPlacement } from '../../collab/docOps';
 import { useEdges, useNodeMap, useNodes, useSynced } from '../../collab/hooks';
+import { useT } from '../../i18n';
 import { useUi } from '../../state/ui';
 import { worldToScreen } from '../coords';
 import {
@@ -307,7 +309,10 @@ export const MarqueeLayer = memo(function MarqueeLayer() {
  * (NodeShape를 쓰지 않는 이유: data-node-id가 붙어 실제 도형으로 세어지거나 클릭 대상이 되면 안 된다.)
  */
 function Ghost({ preset, center }: { preset: NodePreset; center: Point }) {
-  const { w, h } = preset;
+  // 실제로 놓일 도형과 같은 글자와 크기로 그린다. 언어가 바뀌면 다시 그리도록 구독한다
+  useT();
+  const placed = presetPlacement(preset.id);
+  const { w, h } = placed;
   const x = Math.round(center.x - w / 2);
   const y = Math.round(center.y - h / 2);
   const cx = x + w / 2;
@@ -342,7 +347,7 @@ function Ghost({ preset, center }: { preset: NodePreset; center: Point }) {
     case 'attribute':
       shape = (
         <>
-          <ellipse cx={cx} cy={cy} rx={w / 2} ry={h / 2} {...common} strokeDasharray={props.derived ? '6 4' : undefined} />
+          <ellipse cx={cx} cy={cy} rx={w / 2} ry={h / 2} {...common} />
           {props.multivalued && <ellipse cx={cx} cy={cy} rx={w / 2 - g} ry={h / 2 - g} {...inner} />}
         </>
       );
@@ -355,7 +360,7 @@ function Ghost({ preset, center }: { preset: NodePreset; center: Point }) {
       break;
   }
 
-  const text = preset.kind === 'spec' ? (props.specType ?? 'd') : preset.defaultText;
+  const text = preset.kind === 'spec' ? (props.specType ?? 'd') : placed.text;
   const underline = props.keyType === 'key' || props.keyType === 'partial';
   return (
     <g className="canvas-place-preview" pointerEvents="none" opacity={0.5}>
@@ -391,13 +396,14 @@ export const PlacePreview = memo(function PlacePreview() {
 export const EmptyHint = memo(function EmptyHint() {
   const empty = useNodes().length === 0;
   const synced = useSynced();
+  const t = useT();
   if (!empty || !synced) return null;
   return (
     <div className="canvas-empty">
-      <p className="canvas-empty-title">아직 그려진 것이 없습니다</p>
-      <p>왼쪽에서 도형을 고른 뒤 캔버스를 클릭하면 놓입니다</p>
-      <p>도형에 마우스를 올리면 나오는 점을 다른 도형으로 끌어 선을 잇습니다</p>
-      <p>스페이스를 누른 채 끌면 화면이 움직입니다</p>
+      <p className="canvas-empty-title">{t('canvas.empty.title')}</p>
+      <p>{t('canvas.empty.place')}</p>
+      <p>{t('canvas.empty.connect')}</p>
+      <p>{t('canvas.empty.pan')}</p>
     </div>
   );
 });

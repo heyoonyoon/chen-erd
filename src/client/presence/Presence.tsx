@@ -6,6 +6,7 @@ import type { Peer, Point, UserInfo } from '../../shared/types';
 import { clientToWorld, worldToScreen } from '../canvas/coords';
 import { centerOn } from '../canvas/ViewportControls';
 import { useMyPresence, useNodeMap, usePeers, useRoom } from '../collab/hooks';
+import { useT } from '../i18n';
 import { getIdentity } from '../identity';
 import { ui, useUi } from '../state/ui';
 import { openNicknameDialog } from './NicknameDialog';
@@ -263,6 +264,7 @@ export function RemoteSelections() {
 export const MAX_AVATARS = 6;
 
 function Avatar({ user, me, clickable, onClick }: { user: UserInfo; me?: boolean; clickable: boolean; onClick(): void }) {
+  const t = useT();
   const name = displayName(user.name);
   const style: ColorStyle = { '--presence-color': safeColor(user.color) };
   const className = ['presence-avatar', me ? 'is-me' : '', clickable ? 'is-clickable' : ''].filter(Boolean).join(' ');
@@ -274,7 +276,7 @@ function Avatar({ user, me, clickable, onClick }: { user: UserInfo; me?: boolean
       data-user-name={name}
       data-me={me ? 'true' : undefined}
       title={name}
-      aria-label={me ? `${name} (나), 이름 바꾸기` : clickable ? `${name}, 이 사람 위치로 이동` : name}
+      aria-label={me ? t('presence.me', { name }) : clickable ? t('presence.goto', { name }) : name}
       style={style}
       onClick={onClick}
     >
@@ -289,11 +291,12 @@ export function UserAvatars() {
   const me = useMyPresence();
   const myUser = me?.user ?? getIdentity();
 
+  const t = useT();
   const shown = peers.slice(0, MAX_AVATARS - 1);
   const hidden = peers.slice(shown.length);
 
   return (
-    <div className="presence-avatars" role="group" aria-label="접속자">
+    <div className="presence-avatars" role="group" aria-label={t('presence.group')}>
       <Avatar user={myUser} me clickable onClick={openNicknameDialog} />
       {shown.map((peer) => (
         <Avatar
@@ -309,7 +312,7 @@ export function UserAvatars() {
         <span
           className="presence-avatar presence-avatar-more"
           data-testid="avatar-more"
-          title={hidden.map((p) => displayName(p.user.name)).join(', ')}
+          title={hidden.map((p) => displayName(p.user.name)).join(t('list.separator'))}
         >
           +{hidden.length}
         </span>

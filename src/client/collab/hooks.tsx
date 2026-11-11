@@ -11,7 +11,7 @@ export const RoomContext = createContext<Room | null>(null);
 /** 현재 방. RoomPage 아래에서만 쓸 수 있다. */
 export function useRoom(): Room {
   const room = useContext(RoomContext);
-  if (!room) throw new Error('useRoom은 RoomContext 안에서만 쓸 수 있습니다');
+  if (!room) throw new Error('useRoom must be used inside RoomContext');
   return room;
 }
 

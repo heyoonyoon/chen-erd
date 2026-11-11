@@ -374,11 +374,11 @@ describe('TopBar JSON 불러오기', () => {
   it('파싱 오류는 그 메시지를 error 알림으로 보여 준다', async () => {
     const { room } = makeRoom();
     ex.parseErdFile.mockImplementationOnce(() => {
-      throw new Error('Chen ERD 파일이 아닙니다');
+      throw new Error('modelll 파일이 아닙니다');
     });
     renderBar(room);
     pick('not json');
-    await waitFor(() => expect(toasts()).toContainEqual(['Chen ERD 파일이 아닙니다', 'error']));
+    await waitFor(() => expect(toasts()).toContainEqual(['modelll 파일이 아닙니다', 'error']));
     expect(ex.importErdFile).not.toHaveBeenCalled();
   });
 });

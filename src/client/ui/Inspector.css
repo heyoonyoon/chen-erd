@@ -9,7 +9,7 @@
 .inspector-section:last-child { border-bottom: 0; }
 .inspector-section-title { font-size: 11px; font-weight: 600; color: var(--text-dim); }
 .inspector-hint { font-size: 12px; color: var(--text-dim); }
-.inspector-wide { width: 100%; }
+.inspector-wide { width: 100%; height: auto; min-height: 32px; padding: 4px 12px; white-space: normal; line-height: 1.2; }
 
 /* 종류 격자: 6칸 2줄 */
 .inspector-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
@@ -28,14 +28,15 @@
 .inspector-row-label { font-size: 12px; }
 
 .inspector-segmented { display: flex; width: 100%; }
-.inspector-segmented > button { flex: 1 1 0; min-width: 0; padding: 0 6px; }
+/* 글자가 긴 언어에서는 칸 안에서 두 줄로 넘긴다(잘리지 않게) */
+.inspector-segmented > button { flex: 1 1 0; min-width: 0; height: auto; min-height: 30px; padding: 3px 6px; line-height: 1.2; overflow-wrap: anywhere; }
 .inspector-segmented > button:disabled { color: var(--text-faint); cursor: default; }
 .inspector-segmented > button:disabled:hover { background: transparent; }
 .inspector-segmented > button.is-active:hover { background: var(--accent-hover); }
 .inspector-segmented > button.is-active:disabled { background: var(--border-strong); color: #fff; }
 
 /* 켜고 끄는 줄 */
-.inspector-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); width: 100%; height: 30px; padding: 0 2px; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; text-align: left; }
+.inspector-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); width: 100%; min-height: 30px; padding: 2px; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; text-align: left; }
 .inspector-toggle:hover .inspector-switch { border-color: var(--text-faint); }
 .inspector-switch { position: relative; flex: 0 0 auto; width: 30px; height: 18px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-hover); transition: background 0.12s, border-color 0.12s; }
 .inspector-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--border-strong); transition: transform 0.12s; }
@@ -55,12 +56,12 @@
 .inspector-cardinality { display: flex; flex-direction: column; gap: var(--gap); }
 .inspector-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspector-segmented > button > svg { display: block; margin: 0 auto; }
-.inspector-reset { align-self: flex-end; height: 26px; padding: 0 8px; font-size: 12px; color: var(--text-dim); }
+.inspector-reset { align-self: flex-end; max-width: 100%; height: auto; min-height: 26px; padding: 2px 8px; font-size: 12px; color: var(--text-dim); white-space: normal; text-align: right; }
 
 /* 정렬 */
 .inspector-align { display: flex; gap: 4px; }
 .inspector-align > .btn-icon { flex: 1 1 0; min-width: 0; }
-.inspector-distribute { flex: 1 1 0; min-width: 0; padding: 0 8px; font-size: 12px; }
+.inspector-distribute { flex: 1 1 0; min-width: 0; height: auto; min-height: 32px; padding: 2px 8px; font-size: 12px; white-space: normal; line-height: 1.2; }
 
 .inspector-delete { width: 100%; color: var(--danger); }
 .inspector-delete:hover { border-color: var(--danger); }

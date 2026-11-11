@@ -10,6 +10,7 @@ import { computeEdgeGeometry, diagramBounds, siblingInfo, unionBounds } from '..
 import { STYLE, type ErdEdge, type ErdFile, type ErdNode, type NodeKind, type Point, type Rect } from '../../shared/types';
 import { DiagramContent } from '../canvas/DiagramContent';
 import { addEdges, addNodes, getEdges, getNodes, getTitle, newId, replaceAll, setTitle, transact } from '../collab/docOps';
+import { t } from '../i18n';
 import { measureText } from '../text/measure';
 import { fitScale, setPngDpi } from './png';
 
@@ -315,7 +316,7 @@ export async function copyPngToClipboard(nodes: ErdNode[], edges: ErdEdge[], opt
   if (nodes.length === 0) return false;
 
   const pending = renderPngBlob(nodes, edges, opts).then((blob) => {
-    if (!blob) throw new Error('PNG를 만들지 못했습니다');
+    if (!blob) throw new Error(t('export.pngFailed'));
     return blob;
   });
   // 아래에서 따로 기다리므로 처리되지 않은 거부로 보고되지 않게 한다
@@ -400,7 +401,7 @@ function fail(message: string): never {
 
 /** 오류 메시지에 넣을 값 표시 */
 function show(v: unknown): string {
-  if (v === undefined) return '없음';
+  if (v === undefined) return t('import.error.noValue');
   let s: string;
   try {
     s = JSON.stringify(v) ?? String(v);
@@ -415,56 +416,56 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 /** 글자 필드. 없으면 ''. 숫자로 적은 값(카디널리티 1 등)은 글자로 바꿔 받는다 */
-function readText(v: unknown, where: string): string {
+function readText(v: unknown, at: string, field: string): string {
   if (v === undefined || v === null) return '';
   if (typeof v === 'string') return v;
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  return fail(`${where} 값은 글자여야 합니다. (현재 값: ${show(v)})`);
+  return fail(t('import.error.notText', { at, field, value: show(v) }));
 }
 
-function readId(v: unknown, where: string): string {
+function readId(v: unknown, at: string, field: string): string {
   if (typeof v !== 'string' || v.trim() === '') {
-    return fail(`${where} 값이 없거나 글자가 아닙니다. (현재 값: ${show(v)})`);
+    return fail(t('import.error.idMissing', { at, field, value: show(v) }));
   }
   return v;
 }
 
 function parseNode(raw: unknown, index: number, seen: Set<string>): ErdNode {
   const at = `nodes[${index}]`;
-  if (!isRecord(raw)) return fail(`${at} 항목이 객체가 아닙니다. (현재 값: ${show(raw)})`);
-  const id = readId(raw.id, `${at}의 id`);
-  if (seen.has(id)) fail(`${at}의 id ${show(id)}가 다른 항목과 겹칩니다. id는 파일 안에서 하나뿐이어야 합니다.`);
+  if (!isRecord(raw)) return fail(t('import.error.itemNotObject', { at, value: show(raw) }));
+  const id = readId(raw.id, at, 'id');
+  if (seen.has(id)) fail(t('import.error.duplicateId', { at, value: show(id) }));
 
   if (typeof raw.kind !== 'string' || !(NODE_KINDS as readonly string[]).includes(raw.kind)) {
-    fail(`${at}의 kind 값 ${show(raw.kind)}은 쓸 수 없습니다. (${NODE_KINDS.join(', ')} 중 하나여야 합니다.)`);
+    fail(t('import.error.badChoice', { at, field: 'kind', value: show(raw.kind), allowed: NODE_KINDS.join(', ') }));
   }
   const kind = raw.kind as NodeKind;
 
   const num = (key: 'x' | 'y' | 'w' | 'h'): number => {
     const v = raw[key];
     if (typeof v !== 'number' || !Number.isFinite(v)) {
-      return fail(`${at}의 ${key} 값이 숫자가 아닙니다. (현재 값: ${show(v)})`);
+      return fail(t('import.error.notNumber', { at, field: key, value: show(v) }));
     }
     return v;
   };
-  const node: ErdNode = { id, kind, x: num('x'), y: num('y'), w: num('w'), h: num('h'), text: readText(raw.text, `${at}의 text`) };
-  if (node.w <= 0 || node.h <= 0) fail(`${at}의 크기(w, h)는 0보다 커야 합니다. (현재 값: ${node.w} x ${node.h})`);
+  const node: ErdNode = { id, kind, x: num('x'), y: num('y'), w: num('w'), h: num('h'), text: readText(raw.text, at, 'text') };
+  if (node.w <= 0 || node.h <= 0) fail(t('import.error.badSize', { at, w: node.w, h: node.h }));
 
   for (const flag of BOOLEAN_FLAGS) {
     const v = raw[flag];
     if (v === undefined || v === null) continue;
-    if (typeof v !== 'boolean') fail(`${at}의 ${flag} 값은 true 또는 false여야 합니다. (현재 값: ${show(v)})`);
+    if (typeof v !== 'boolean') fail(t('import.error.notBoolean', { at, field: flag, value: show(v) }));
     node[flag] = v as boolean;
   }
   if (raw.keyType !== undefined && raw.keyType !== null) {
     if (!(KEY_TYPES as readonly unknown[]).includes(raw.keyType)) {
-      fail(`${at}의 keyType 값 ${show(raw.keyType)}은 쓸 수 없습니다. (${KEY_TYPES.join(', ')} 중 하나여야 합니다.)`);
+      fail(t('import.error.badChoice', { at, field: 'keyType', value: show(raw.keyType), allowed: KEY_TYPES.join(', ') }));
     }
     node.keyType = raw.keyType as ErdNode['keyType'];
   }
   if (raw.specType !== undefined && raw.specType !== null) {
     if (!(SPEC_TYPES as readonly unknown[]).includes(raw.specType)) {
-      fail(`${at}의 specType 값 ${show(raw.specType)}은 쓸 수 없습니다. (${SPEC_TYPES.join(', ')} 중 하나여야 합니다.)`);
+      fail(t('import.error.badChoice', { at, field: 'specType', value: show(raw.specType), allowed: SPEC_TYPES.join(', ') }));
     }
     node.specType = raw.specType as ErdNode['specType'];
   } else if (kind === 'spec') {
@@ -475,13 +476,13 @@ function parseNode(raw: unknown, index: number, seen: Set<string>): ErdNode {
 
 function parseEdge(raw: unknown, index: number, seen: Set<string>, nodeIds: Set<string>): ErdEdge {
   const at = `edges[${index}]`;
-  if (!isRecord(raw)) return fail(`${at} 항목이 객체가 아닙니다. (현재 값: ${show(raw)})`);
-  const id = readId(raw.id, `${at}의 id`);
-  if (seen.has(id)) fail(`${at}의 id ${show(id)}가 다른 항목과 겹칩니다. id는 파일 안에서 하나뿐이어야 합니다.`);
+  if (!isRecord(raw)) return fail(t('import.error.itemNotObject', { at, value: show(raw) }));
+  const id = readId(raw.id, at, 'id');
+  if (seen.has(id)) fail(t('import.error.duplicateId', { at, value: show(id) }));
 
   const end = (key: 'source' | 'target'): string => {
-    const v = readId(raw[key], `${at}의 ${key}`);
-    if (!nodeIds.has(v)) fail(`${at}의 ${key} ${show(v)}에 해당하는 도형이 nodes에 없습니다.`);
+    const v = readId(raw[key], at, key);
+    if (!nodeIds.has(v)) fail(t('import.error.missingNode', { at, field: key, value: show(v) }));
     return v;
   };
   const source = end('source');
@@ -489,10 +490,10 @@ function parseEdge(raw: unknown, index: number, seen: Set<string>, nodeIds: Set<
 
   let double = false;
   if (raw.double !== undefined && raw.double !== null) {
-    if (typeof raw.double !== 'boolean') fail(`${at}의 double 값은 true 또는 false여야 합니다. (현재 값: ${show(raw.double)})`);
+    if (typeof raw.double !== 'boolean') fail(t('import.error.notBoolean', { at, field: 'double', value: show(raw.double) }));
     double = raw.double as boolean;
   }
-  const edge: ErdEdge = { id, source, target, double, label: readText(raw.label, `${at}의 label`), role: readText(raw.role, `${at}의 role`) };
+  const edge: ErdEdge = { id, source, target, double, label: readText(raw.label, at, 'label'), role: readText(raw.role, at, 'role') };
   // 선이 붙는 면과 선 모양은 선택 항목이다. 모르는 값은 버리고 자동으로 둔다
   if (isSideValue(raw.sourceSide)) edge.sourceSide = raw.sourceSide;
   if (isSideValue(raw.targetSide)) edge.targetSide = raw.targetSide;
@@ -504,26 +505,26 @@ function isSideValue(v: unknown): v is NonNullable<ErdEdge['sourceSide']> {
   return v === 'top' || v === 'right' || v === 'bottom' || v === 'left';
 }
 
-/** 텍스트를 ErdFile로 해석하고 검사한다. 형식이 틀리면 한국어 메시지와 함께 Error를 던진다. */
+/** 텍스트를 ErdFile로 해석하고 검사한다. 형식이 틀리면 현재 언어로 된 메시지와 함께 Error를 던진다. */
 export function parseErdFile(text: string): ErdFile {
   const source = typeof text === 'string' ? text.replace(/^﻿/, '') : '';
-  if (source.trim() === '') fail('파일이 비어 있습니다.');
+  if (source.trim() === '') fail(t('import.error.empty'));
 
   let data: unknown;
   try {
     data = JSON.parse(source);
   } catch {
-    fail('JSON 형식이 아닙니다. Chen ERD에서 내보낸 JSON 파일인지 확인해 주세요.');
+    fail(t('import.error.notJson'));
   }
-  if (!isRecord(data)) return fail('Chen ERD 파일이 아닙니다. 파일의 가장 바깥이 객체여야 합니다.');
+  if (!isRecord(data)) return fail(t('import.error.notObject'));
   if (data.format !== 'chen-erd') {
-    fail(`Chen ERD 파일이 아닙니다. format 값이 "chen-erd"여야 합니다. (현재 값: ${show(data.format)})`);
+    fail(t('import.error.badFormat', { value: show(data.format) }));
   }
   if (data.version !== 1) {
-    fail(`지원하지 않는 파일 버전입니다. version 1만 읽을 수 있습니다. (현재 값: ${show(data.version)})`);
+    fail(t('import.error.badVersion', { value: show(data.version) }));
   }
-  if (!Array.isArray(data.nodes)) fail(`nodes 항목이 배열이 아닙니다. (현재 값: ${show(data.nodes)})`);
-  if (!Array.isArray(data.edges)) fail(`edges 항목이 배열이 아닙니다. (현재 값: ${show(data.edges)})`);
+  if (!Array.isArray(data.nodes)) fail(t('import.error.notArray', { field: 'nodes', value: show(data.nodes) }));
+  if (!Array.isArray(data.edges)) fail(t('import.error.notArray', { field: 'edges', value: show(data.edges) }));
 
   // 노드와 선의 id는 선택, 삭제에서 함께 쓰이므로 서로도 겹치면 안 된다
   const seen = new Set<string>();

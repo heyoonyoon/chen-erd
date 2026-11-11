@@ -1,6 +1,7 @@
 import { crc32 } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
+import { APP_NAME } from '../../shared/app';
 import { diagramBounds } from '../../shared/geometry';
 import type { ErdEdge, ErdFile, ErdNode } from '../../shared/types';
 import { addEdges, addNodes, getEdges, getNodes, getTitle, setTitle } from '../collab/docOps';
@@ -108,8 +109,8 @@ describe('parseErdFile', () => {
   it('JSON이 아니면 알려 준다', () => {
     expect(() => parseErdFile('')).toThrow('비어');
     expect(() => parseErdFile('{ nodes: ')).toThrow('JSON 형식이 아닙니다');
-    expect(() => parseErdFile('[]')).toThrow('Chen ERD 파일이 아닙니다');
-    expect(() => parseErdFile('null')).toThrow('Chen ERD 파일이 아닙니다');
+    expect(() => parseErdFile('[]')).toThrow(`${APP_NAME} 파일이 아닙니다`);
+    expect(() => parseErdFile('null')).toThrow(`${APP_NAME} 파일이 아닙니다`);
   });
 
   it('format과 version을 검사한다', () => {

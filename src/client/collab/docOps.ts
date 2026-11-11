@@ -12,6 +12,8 @@
 import * as Y from 'yjs';
 import { nanoid } from 'nanoid';
 import { NODE_PRESETS, type ErdEdge, type ErdNode, type Point, type PresetId, type Side } from '../../shared/types';
+import { presetText } from '../i18n';
+import { fitNodeSize } from '../text/measure';
 
 export const LOCAL_ORIGIN = 'local';
 
@@ -201,17 +203,30 @@ export function setTitle(doc: Y.Doc, title: string): void {
 
 // ───────────── 순수 생성 함수(문서를 건드리지 않는다) ─────────────
 
+/**
+ * 프리셋으로 새 도형을 만들 때의 글자와 크기.
+ * 글자를 주지 않으면 만드는 사람의 현재 언어로 된 기본 글자를 넣는다(문서에 들어간 뒤에는 번역하지 않는다).
+ * 크기는 프리셋 기본값이고, 언어에 따라 기본 글자가 길어 넘치면 글자에 맞게 키운다.
+ */
+export function presetPlacement(presetId: PresetId, text?: string): { text: string; w: number; h: number } {
+  const p = NODE_PRESETS[presetId];
+  const label = text ?? presetText(presetId);
+  const fit = fitNodeSize({ kind: p.kind, ...p.props }, label);
+  return { text: label, w: Math.max(p.w, fit.w), h: Math.max(p.h, fit.h) };
+}
+
 /** 프리셋 도형을 center가 중심이 되도록 만든다. */
 export function createNodeFromPreset(presetId: PresetId, center: Point, text?: string): ErdNode {
   const p = NODE_PRESETS[presetId];
+  const placed = presetPlacement(presetId, text);
   return {
     id: newId(),
     kind: p.kind,
-    x: Math.round(center.x - p.w / 2),
-    y: Math.round(center.y - p.h / 2),
-    w: p.w,
-    h: p.h,
-    text: text ?? p.defaultText,
+    x: Math.round(center.x - placed.w / 2),
+    y: Math.round(center.y - placed.h / 2),
+    w: placed.w,
+    h: placed.h,
+    text: placed.text,
     ...p.props,
   };
 }

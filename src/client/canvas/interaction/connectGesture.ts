@@ -5,6 +5,7 @@ import { pointInNode } from '../../../shared/geometry';
 import { canConnect, defaultEdgeProps, edgeCanBeDouble } from '../../../shared/rules';
 import type { ErdNode, Point, Side } from '../../../shared/types';
 import { addEdge, addNode, createEdge, createNodeFromPreset, transact } from '../../collab/docOps';
+import { t, tSentence } from '../../i18n';
 import { growToFit } from '../../text/measure';
 import { ui } from '../../state/ui';
 import { isAdditive, worldOf, type Gesture, type GestureCtx, type PointerSnap } from './gesture';
@@ -59,7 +60,7 @@ export function startConnect(ctx: GestureCtx, down: PointerSnap, sourceId: strin
     if (target) {
       const check = canConnect(source, target, room.edges.getSnapshot(), nodes);
       valid = check.ok;
-      if (!check.ok) reason = check.reason ?? '연결할 수 없습니다';
+      if (!check.ok) reason = check.reason ? tSentence(check.reason) : t('connect.unavailable');
     }
     // 고정점은 면을 저장하는 선(엔티티와 관계, 엔티티와 특수화 원)에서만 보여 주고 달라붙는다
     const showAnchors = target != null && valid && shouldStoreSides(source, target);

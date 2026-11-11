@@ -5,20 +5,21 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import { createPortal } from 'react-dom';
 import { NODE_PRESETS, PRESET_ORDER, placeTool, type PresetId, type Tool } from '../../shared/types';
 import { PresetIcon } from '../canvas/PresetIcon';
+import { useLocale, useT, type MessageKey } from '../i18n';
 import { useUi } from '../state/ui';
 import './Toolbar.css';
 
 /** 팔레트 버튼 하나의 정의 */
 export interface ToolDef {
   tool: Tool;
-  /** 한국어 이름 */
-  label: string;
-  /** 영어 이름 */
+  /** 이름의 사전 키 */
+  label: MessageKey;
+  /** 영어 이름(수업 용어). 영어 화면에서는 이름과 겹치므로 보여 주지 않는다 */
   labelEn: string;
   /** 단축키 표시(조합이면 여러 개). 없으면 빈 배열 */
   keys: string[];
-  /** 툴팁의 한 줄 설명 */
-  description: string;
+  /** 툴팁에 보이는 한 줄 설명의 사전 키 */
+  description: MessageKey;
   /** 더블클릭으로 잠글 수 있는 도구인지(도형 놓기, 연결) */
   lockable: boolean;
   icon: ReactNode;
@@ -29,21 +30,6 @@ export function shortcutLabel(code: string | null): string | null {
   if (!code) return null;
   return code.replace(/^(Key|Digit)/, '');
 }
-
-const PRESET_DESCRIPTIONS: Record<PresetId, string> = {
-  entity: '직사각형. 독립적으로 존재하는 개체입니다.',
-  'weak-entity': '이중 직사각형. 소유 엔티티에 의존하는 개체입니다.',
-  relationship: '마름모. 엔티티 사이의 연관입니다.',
-  'identifying-relationship': '이중 마름모. 약한 엔티티를 소유 엔티티와 잇습니다.',
-  attribute: '타원. 하위 속성을 이으면 복합 속성이 됩니다.',
-  'key-attribute': '밑줄 친 속성. 개체를 유일하게 구분합니다.',
-  'partial-key-attribute': '점선 밑줄. 약한 엔티티의 부분 식별자입니다.',
-  'multivalued-attribute': '이중 타원. 값을 여러 개 가질 수 있습니다.',
-  'derived-attribute': '점선 타원. 다른 값에서 계산되는 속성입니다.',
-  'spec-d': '원 안의 d(disjoint). 서브타입이 서로 겹치지 않습니다.',
-  'spec-o': '원 안의 o(overlap). 서브타입이 겹칠 수 있습니다.',
-  note: '그림 옆에 설명을 적어 둡니다.',
-};
 
 const ICON_PROPS = {
   width: 20,
@@ -98,10 +84,10 @@ function presetTool(id: PresetId): ToolDef {
   const key = shortcutLabel(preset.shortcut);
   return {
     tool: placeTool(id),
-    label: preset.label,
+    label: `preset.${id}.label`,
     labelEn: preset.labelEn,
     keys: key ? [key] : [],
-    description: PRESET_DESCRIPTIONS[id],
+    description: `preset.${id}.desc`,
     lockable: true,
     icon: <PresetIcon presetId={id} size={26} />,
   };
@@ -125,19 +111,19 @@ export const TOOL_GROUPS: ToolDef[][] = [
   [
     {
       tool: 'select',
-      label: '선택',
+      label: 'tool.select.label',
       labelEn: 'Select',
       keys: ['V'],
-      description: '도형을 선택하고 옮깁니다. 빈 곳을 끌면 상자 선택입니다.',
+      description: 'tool.select.desc',
       lockable: false,
       icon: <SelectIcon />,
     },
     {
       tool: 'pan',
-      label: '손',
+      label: 'tool.pan.label',
       labelEn: 'Hand',
       keys: ['H'],
-      description: '화면을 끌어 옮깁니다. 스페이스를 누른 채 끌어도 됩니다.',
+      description: 'tool.pan.desc',
       lockable: false,
       icon: <HandIcon />,
     },
@@ -146,19 +132,19 @@ export const TOOL_GROUPS: ToolDef[][] = [
   [
     {
       tool: 'connect',
-      label: '단선 연결',
+      label: 'tool.connect.label',
       labelEn: 'Line',
       keys: ['L'],
-      description: '부분 참여 또는 부분 특수화',
+      description: 'tool.connect.desc',
       lockable: true,
       icon: <LineIcon />,
     },
     {
       tool: 'connect-double',
-      label: '이중선 연결',
+      label: 'tool.connect-double.label',
       labelEn: 'Double line',
       keys: ['Shift', 'L'],
-      description: '전체 참여 또는 전체 특수화',
+      description: 'tool.connect-double.desc',
       lockable: true,
       icon: <DoubleLineIcon />,
     },
@@ -184,6 +170,7 @@ function isFocusVisible(el: Element): boolean {
 }
 
 export function Toolbar() {
+  const t = useT();
   const tool = useUi((s) => s.tool);
   const toolLocked = useUi((s) => s.toolLocked);
   const setTool = useUi((s) => s.setTool);
@@ -217,7 +204,7 @@ export function Toolbar() {
   const hideTip = () => setTip(null);
 
   return (
-    <div className="toolbar panel" role="toolbar" aria-label="도구" aria-orientation="vertical" data-testid="toolbar">
+    <div className="toolbar panel" role="toolbar" aria-label={t('toolbar.label')} aria-orientation="vertical" data-testid="toolbar">
       <div
         ref={scrollRef}
         className="toolbar-scroll"
@@ -243,7 +230,7 @@ export function Toolbar() {
                     className={`toolbar-btn${active ? ' is-active' : ''}`}
                     data-testid={`tool-${def.tool}`}
                     data-locked={locked || undefined}
-                    aria-label={locked ? `${def.label} (잠금)` : def.label}
+                    aria-label={locked ? t('toolbar.locked', { label: t(def.label) }) : t(def.label)}
                     aria-pressed={active}
                     aria-keyshortcuts={def.keys.length > 0 ? def.keys.join('+') : undefined}
                     onClick={(e) => {
@@ -293,6 +280,8 @@ function LockMark() {
 
 /** 버튼 오른쪽에 뜨는 설명. 팔레트가 스크롤 영역이라 잘리지 않도록 body에 그린다. */
 function ToolTip({ tip, locked }: { tip: TipState; locked: boolean }) {
+  const t = useT();
+  const locale = useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const { def } = tip;
 
@@ -304,12 +293,12 @@ function ToolTip({ tip, locked }: { tip: TipState; locked: boolean }) {
     const min = TIP_MARGIN + half;
     const max = window.innerHeight - TIP_MARGIN - half;
     el.style.top = `${Math.max(min, Math.min(max, tip.centerY))}px`;
-  }, [tip, locked]);
+  }, [tip, locked, locale]);
 
   return createPortal(
     <div ref={ref} className="toolbar-tip" role="tooltip" data-testid="tool-tip" style={{ left: tip.left, top: tip.centerY }}>
       <div className="toolbar-tip-head">
-        <span className="toolbar-tip-name">{def.label}</span>
+        <span className="toolbar-tip-name">{t(def.label)}</span>
         {def.keys.length > 0 && (
           <span className="toolbar-tip-keys">
             {def.keys.map((k, i) => (
@@ -321,11 +310,11 @@ function ToolTip({ tip, locked }: { tip: TipState; locked: boolean }) {
           </span>
         )}
       </div>
-      <div className="toolbar-tip-en">{def.labelEn}</div>
-      <div className="toolbar-tip-desc">{def.description}</div>
+      {locale !== 'en' && <div className="toolbar-tip-en">{def.labelEn}</div>}
+      <div className="toolbar-tip-desc">{t(def.description)}</div>
       {def.lockable && (
         <div className="toolbar-tip-hint">
-          {locked ? '도구 잠금 상태입니다. 한 번 누르면 풀립니다.' : '두 번 누르면 도구가 잠겨 계속 쓸 수 있습니다.'}
+          {locked ? t('toolbar.lockHint.locked') : t('toolbar.lockHint.unlocked')}
         </div>
       )}
     </div>,

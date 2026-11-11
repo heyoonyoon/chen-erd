@@ -2,6 +2,7 @@
  * 접속자 표시에 쓰는 순수 계산. DOM이나 React에 기대지 않는다. [담당: presence 에이전트]
  */
 import type { Point } from '../../shared/types';
+import { t } from '../i18n';
 
 // ───────────────────────── 전송 간격 제한 ─────────────────────────
 
@@ -77,15 +78,14 @@ export function createThrottle<A extends unknown[]>(
 
 // ───────────────────────── 사용자 표시 ─────────────────────────
 
-export const ANONYMOUS = '익명';
 export const NAME_MAX = 20;
 const FALLBACK_COLOR = '#6b7280';
 
-/** 화면에 보여 줄 이름. 비어 있으면 "익명". 다른 접속자가 보낸 값이라 형식을 믿지 않는다. */
+/** 화면에 보여 줄 이름. 비어 있으면 현재 언어의 "익명". 다른 접속자가 보낸 값이라 형식을 믿지 않는다. */
 export function displayName(name: unknown): string {
-  if (typeof name !== 'string') return ANONYMOUS;
+  if (typeof name !== 'string') return t('presence.anonymous');
   const trimmed = name.trim();
-  if (!trimmed) return ANONYMOUS;
+  if (!trimmed) return t('presence.anonymous');
   return Array.from(trimmed).slice(0, NAME_MAX).join('');
 }
 
@@ -239,7 +239,7 @@ export function buildRemoteRings(peers: readonly RingPeer[], nodes: ReadonlyMap<
         h: node.h + pad * 2,
         color: safeColor(peer.user?.color),
         editing,
-        label: editing ? `${displayName(peer.user?.name)} 편집 중` : null,
+        label: editing ? t('presence.editing', { name: displayName(peer.user?.name) }) : null,
         stack,
       });
     }

@@ -121,7 +121,7 @@ describe('ContextMenu', () => {
     expect(room.nodes.get('r')!.identifying).toBe(true);
   });
 
-  it('속성: 체크 항목으로 식별자, 부분 키, 다중값, 유도를 켜고 끈다', () => {
+  it('속성: 체크 항목으로 식별자, 부분 키, 다중값을 켜고 끈다', () => {
     const first = openMenu('at');
     expect(item('attr-key').getAttribute('aria-checked')).toBe('true');
     expect(item('attr-partial').getAttribute('aria-checked')).toBe('false');
@@ -138,8 +138,10 @@ describe('ContextMenu', () => {
     fireEvent.click(item('attr-multivalued'));
     third.unmount();
     openMenu('at');
-    fireEvent.click(item('attr-derived'));
-    expect(room.nodes.get('at')).toMatchObject({ multivalued: true, derived: true });
+    expect(room.nodes.get('at')).toMatchObject({ multivalued: true });
+    expect(item('attr-multivalued').getAttribute('aria-checked')).toBe('true');
+    // 유도 속성은 메뉴에 없다
+    expect(screen.queryByTestId('menu-attr-derived')).toBeNull();
   });
 
   it('특수화 원: d와 o를 바꾸고 글자 편집은 꺼져 있다', () => {

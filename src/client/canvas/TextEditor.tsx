@@ -8,6 +8,7 @@ import { STYLE, type ErdNode } from '../../shared/types';
 import { transact, updateNode } from '../collab/docOps';
 import { useRoom } from '../collab/hooks';
 import type { Room } from '../collab/room';
+import { useT } from '../i18n';
 import { ui, useUi } from '../state/ui';
 import { growToFit } from '../text/measure';
 import { worldToScreen } from './coords';
@@ -64,6 +65,7 @@ export function TextEditor() {
 }
 
 function NodeTextEditor({ node }: { node: ErdNode }) {
+  const t = useT();
   const room = useRoom();
   const viewport = useUi((s) => s.viewport);
   const id = node.id;
@@ -203,7 +205,7 @@ function NodeTextEditor({ node }: { node: ErdNode }) {
           ref={inputRef}
           className="text-editor-input"
           data-testid="text-editor"
-          aria-label="도형 글자"
+          aria-label={t('canvas.textEditor')}
           defaultValue={initial}
           rows={1}
           wrap="off"

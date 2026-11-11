@@ -10,6 +10,7 @@ import { copySelection, cutSelection, duplicateSelection, hasClipboard, paste } 
 import { addNode, createNodeFromPreset, updateEdge, updateNode, type NodePatch } from '../collab/docOps';
 import { useEdges, useNodes, useRoom } from '../collab/hooks';
 import type { Room } from '../collab/room';
+import { t, useT } from '../i18n';
 import { ui, useUi, type ContextMenuState } from '../state/ui';
 import './ContextMenu.css';
 
@@ -51,6 +52,7 @@ function ensureTargetSelected(targetId: string): void {
 }
 
 // ───────────────────────── 항목 만들기 ─────────────────────────
+// 항목의 글자는 메뉴를 그릴 때의 언어로 만든다(Menu가 useT로 언어 변화를 구독한다).
 
 /** 종류별 빠른 전환 */
 function nodeToggleEntries(room: Room, node: ErdNode): MenuEntry[] {
@@ -61,7 +63,7 @@ function nodeToggleEntries(room: Room, node: ErdNode): MenuEntry[] {
         {
           type: 'item',
           id: 'toggle-weak',
-          label: node.weak ? '일반 엔티티로 바꾸기' : '약한 엔티티로 바꾸기',
+          label: node.weak ? t('menu.toRegularEntity') : t('menu.toWeakEntity'),
           run: set({ weak: node.weak ? undefined : true }),
         },
       ];
@@ -70,7 +72,7 @@ function nodeToggleEntries(room: Room, node: ErdNode): MenuEntry[] {
         {
           type: 'item',
           id: 'toggle-identifying',
-          label: node.identifying ? '일반 관계로 바꾸기' : '식별 관계로 바꾸기',
+          label: node.identifying ? t('menu.toRegularRelationship') : t('menu.toIdentifying'),
           run: set({ identifying: node.identifying ? undefined : true }),
         },
       ];
@@ -78,10 +80,9 @@ function nodeToggleEntries(room: Room, node: ErdNode): MenuEntry[] {
       const isKey = node.keyType === 'key';
       const isPartial = node.keyType === 'partial';
       return [
-        { type: 'item', id: 'attr-key', label: '식별자', checked: isKey, run: set({ keyType: isKey ? undefined : 'key' }) },
-        { type: 'item', id: 'attr-partial', label: '부분 키', checked: isPartial, run: set({ keyType: isPartial ? undefined : 'partial' }) },
-        { type: 'item', id: 'attr-multivalued', label: '다중값', checked: Boolean(node.multivalued), run: set({ multivalued: node.multivalued ? undefined : true }) },
-        { type: 'item', id: 'attr-derived', label: '유도', checked: Boolean(node.derived), run: set({ derived: node.derived ? undefined : true }) },
+        { type: 'item', id: 'attr-key', label: t('term.key'), checked: isKey, run: set({ keyType: isKey ? undefined : 'key' }) },
+        { type: 'item', id: 'attr-partial', label: t('term.partialKey'), checked: isPartial, run: set({ keyType: isPartial ? undefined : 'partial' }) },
+        { type: 'item', id: 'attr-multivalued', label: t('term.multivalued'), checked: Boolean(node.multivalued), run: set({ multivalued: node.multivalued ? undefined : true }) },
       ];
     }
     case 'spec': {
@@ -90,7 +91,7 @@ function nodeToggleEntries(room: Room, node: ErdNode): MenuEntry[] {
         {
           type: 'item',
           id: 'toggle-spec',
-          label: isOverlap ? 'd(배타)로 바꾸기' : 'o(중첩)로 바꾸기',
+          label: isOverlap ? t('menu.toDisjoint') : t('menu.toOverlap'),
           run: set({ specType: isOverlap ? 'd' : 'o' }),
         },
       ];
@@ -109,7 +110,7 @@ export function nodeEntries(room: Room, node: ErdNode): MenuEntry[] {
     {
       type: 'item',
       id: 'edit-text',
-      label: '글자 편집',
+      label: t('common.editText'),
       hint: HINT.edit,
       // 특수화 원은 글자 대신 d/o를 그린다
       disabled: node.kind === 'spec',
@@ -118,10 +119,10 @@ export function nodeEntries(room: Room, node: ErdNode): MenuEntry[] {
         ui().setEditing(node.id);
       },
     },
-    { type: 'item', id: 'duplicate', label: '복제', hint: HINT.duplicate, run: scoped(() => duplicateSelection(room)) },
-    { type: 'item', id: 'copy', label: '복사', hint: HINT.copy, run: scoped(() => copySelection(room)) },
-    { type: 'item', id: 'cut', label: '잘라내기', hint: HINT.cut, run: scoped(() => cutSelection(room)) },
-    { type: 'item', id: 'delete', label: '삭제', hint: HINT.remove, danger: true, run: scoped(() => deleteSelection(room)) },
+    { type: 'item', id: 'duplicate', label: t('common.duplicate'), hint: HINT.duplicate, run: scoped(() => duplicateSelection(room)) },
+    { type: 'item', id: 'copy', label: t('common.copy'), hint: HINT.copy, run: scoped(() => copySelection(room)) },
+    { type: 'item', id: 'cut', label: t('common.cut'), hint: HINT.cut, run: scoped(() => cutSelection(room)) },
+    { type: 'item', id: 'delete', label: t('common.delete'), hint: HINT.remove, danger: true, run: scoped(() => deleteSelection(room)) },
   ];
   const toggles = nodeToggleEntries(room, node);
   if (toggles.length > 0) entries.push({ type: 'separator' }, ...toggles);
@@ -134,12 +135,12 @@ export function edgeEntries(room: Room, edge: ErdEdge): MenuEntry[] {
   const entries: MenuEntry[] = [];
 
   if (source && target && edgeHasCardinality(source, target)) {
-    entries.push({ type: 'heading', label: '카디널리티' });
+    entries.push({ type: 'heading', label: t('term.cardinality') });
     for (const value of CARDINALITY_OPTIONS) {
       entries.push({
         type: 'item',
         id: `card-${value || 'none'}`,
-        label: value || '없음',
+        label: value || t('common.none'),
         checked: edge.label === value,
         run: () => updateEdge(room.doc, edge.id, { label: value }),
       });
@@ -148,15 +149,15 @@ export function edgeEntries(room: Room, edge: ErdEdge): MenuEntry[] {
   }
   if (source && target && edgeCanBeDouble(source, target)) {
     entries.push(
-      { type: 'item', id: 'line-single', label: '단선', checked: !edge.double, run: () => updateEdge(room.doc, edge.id, { double: false }) },
-      { type: 'item', id: 'line-double', label: '이중선', checked: edge.double, run: () => updateEdge(room.doc, edge.id, { double: true }) },
+      { type: 'item', id: 'line-single', label: t('term.singleLine'), checked: !edge.double, run: () => updateEdge(room.doc, edge.id, { double: false }) },
+      { type: 'item', id: 'line-double', label: t('term.doubleLine'), checked: edge.double, run: () => updateEdge(room.doc, edge.id, { double: true }) },
       { type: 'separator' },
     );
   }
   entries.push({
     type: 'item',
     id: 'delete',
-    label: '삭제',
+    label: t('common.delete'),
     hint: HINT.remove,
     danger: true,
     run: () => {
@@ -176,14 +177,14 @@ export function emptyEntries(room: Room, menu: ContextMenuState): MenuEntry[] {
   };
   const isEmpty = room.nodes.getSnapshot().length === 0;
   return [
-    { type: 'item', id: 'paste', label: '붙여넣기', hint: HINT.paste, disabled: !hasClipboard(), run: () => void paste(room, menu.world) },
+    { type: 'item', id: 'paste', label: t('common.paste'), hint: HINT.paste, disabled: !hasClipboard(), run: () => void paste(room, menu.world) },
     { type: 'separator' },
-    { type: 'item', id: 'add-entity', label: '여기에 엔티티 추가', run: add('entity') },
-    { type: 'item', id: 'add-relationship', label: '여기에 관계 추가', run: add('relationship') },
-    { type: 'item', id: 'add-attribute', label: '여기에 속성 추가', run: add('attribute') },
+    { type: 'item', id: 'add-entity', label: t('menu.addEntity'), run: add('entity') },
+    { type: 'item', id: 'add-relationship', label: t('menu.addRelationship'), run: add('relationship') },
+    { type: 'item', id: 'add-attribute', label: t('menu.addAttribute'), run: add('attribute') },
     { type: 'separator' },
-    { type: 'item', id: 'select-all', label: '모두 선택', hint: HINT.selectAll, disabled: isEmpty, run: () => selectAll(room) },
-    { type: 'item', id: 'fit', label: '전체 보기', hint: HINT.fit, disabled: isEmpty, run: () => fitToDiagram(room) },
+    { type: 'item', id: 'select-all', label: t('common.selectAll'), hint: HINT.selectAll, disabled: isEmpty, run: () => selectAll(room) },
+    { type: 'item', id: 'fit', label: t('common.fit'), hint: HINT.fit, disabled: isEmpty, run: () => fitToDiagram(room) },
   ];
 }
 
@@ -224,6 +225,8 @@ export function ContextMenu() {
 
 function Menu({ menu }: { menu: ContextMenuState }) {
   const room = useRoom();
+  // 항목의 글자는 t()로 만든다. 떠 있는 동안 언어가 바뀌면 다시 그린다
+  useT();
   // 메뉴가 떠 있는 동안 다른 사람이 대상을 고치거나 지우면 다시 그린다
   useNodes();
   useEdges();

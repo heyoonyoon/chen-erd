@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { NODE_PRESETS, PRESET_ORDER, STYLE, type ErdNode, type PresetId } from '../../shared/types';
+import { presetText } from '../i18n';
 import { approximateLineWidth, fitNodeSize, growToFit, innerDiamondScale, measureText } from './measure';
 
 function nodeOf(presetId: PresetId, over: Partial<ErdNode> = {}): ErdNode {
   const p = NODE_PRESETS[presetId];
-  return { id: 'n1', kind: p.kind, x: 100, y: 200, w: p.w, h: p.h, text: p.defaultText, ...p.props, ...over };
+  return { id: 'n1', kind: p.kind, x: 100, y: 200, w: p.w, h: p.h, text: presetText(presetId), ...p.props, ...over };
 }
 
 const LONG = '아주 길게 적은 이름으로 도형이 커져야 하는 글자입니다';
@@ -43,7 +44,7 @@ describe('fitNodeSize', () => {
   it('기본 글자에서는 모든 프리셋이 기본 크기 그대로다', () => {
     for (const id of PRESET_ORDER) {
       const p = NODE_PRESETS[id];
-      expect(fitNodeSize(nodeOf(id), p.defaultText), id).toEqual({ w: p.w, h: p.h });
+      expect(fitNodeSize(nodeOf(id), presetText(id)), id).toEqual({ w: p.w, h: p.h });
     }
   });
 
@@ -134,7 +135,7 @@ describe('fitNodeSize', () => {
 describe('growToFit', () => {
   it('넘치지 않으면 null', () => {
     for (const id of PRESET_ORDER) {
-      expect(growToFit(nodeOf(id), NODE_PRESETS[id].defaultText), id).toBeNull();
+      expect(growToFit(nodeOf(id), presetText(id)), id).toBeNull();
     }
     expect(growToFit(nodeOf('entity', { w: 600, h: 300 }), LONG)).toBeNull();
   });

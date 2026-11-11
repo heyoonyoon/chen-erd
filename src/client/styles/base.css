@@ -25,10 +25,25 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
   --topbar-h: 48px;
-  /* 화면 글꼴은 Pretendard(웹폰트 이름은 'Pretendard Variable'). 다이어그램 안의 글자는 STYLE.fontFamily를 따로 쓴다 */
-  --font: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+  /*
+   * 화면 글꼴은 Pretendard(웹폰트 이름은 'Pretendard Variable'). 다이어그램 안의 글자는 STYLE.fontFamily를 따로 쓴다.
+   * Pretendard에 없는 글자는 뒤의 시스템 글꼴이 맡는다. 일본어와 중국어는 html의 lang에 따라 아래에서 순서를 바꾼다
+   * (같은 한자라도 언어마다 글자 모양이 달라서 그 언어의 글꼴이 먼저 와야 한다).
+   */
+  --font-latin: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont;
+  --font-ko: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR';
+  --font-ja: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', 'Noto Sans CJK JP';
+  --font-sc: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Noto Sans CJK SC';
+  --font-tc: 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', 'Noto Sans CJK TC';
+  --font: var(--font-latin), var(--font-ko), var(--font-ja), var(--font-sc), var(--font-tc), system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
+
+:root:lang(ja) { --font: var(--font-latin), var(--font-ja), var(--font-ko), var(--font-sc), var(--font-tc), system-ui, sans-serif; }
+:root:lang(zh-CN) { --font: var(--font-latin), var(--font-sc), var(--font-tc), var(--font-ja), var(--font-ko), system-ui, sans-serif; }
+:root:lang(zh-TW) { --font: var(--font-latin), var(--font-tc), var(--font-sc), var(--font-ja), var(--font-ko), system-ui, sans-serif; }
+/* keep-all은 띄어쓰기에서만 줄을 바꾸는 한국어용이다. 띄어쓰기가 없는 일본어와 중국어에서는 글자 사이에서 줄이 바뀌어야 넘치지 않는다 */
+:root:lang(ja) body, :root:lang(zh-CN) body, :root:lang(zh-TW) body { word-break: normal; line-break: strict; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }

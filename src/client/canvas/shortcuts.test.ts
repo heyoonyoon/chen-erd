@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { NODE_PRESETS, PRESET_ORDER, type ErdEdge, type ErdNode } from '../../shared/types';
 import { parseClip, resetClipboardForTest } from '../collab/clipboard';
+import { t } from '../i18n';
 import { LOCAL_ORIGIN, addEdges, addNodes, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode } from '../collab/docOps';
 import { ElementStore, type Room } from '../collab/room';
 import { useUi } from '../state/ui';
@@ -396,7 +397,7 @@ describe('SHORTCUT_LIST', () => {
     expect([...groups].sort()).toEqual([...SHORTCUT_GROUPS].sort());
     for (const s of SHORTCUT_LIST) {
       expect(s.keys.length).toBeGreaterThan(0);
-      expect(s.description).not.toBe('');
+      expect(t(s.description)).not.toBe('');
     }
   });
 
@@ -404,7 +405,7 @@ describe('SHORTCUT_LIST', () => {
     for (const id of PRESET_ORDER) {
       const p = NODE_PRESETS[id];
       if (!p.shortcut) continue;
-      expect(SHORTCUT_LIST.some((s) => s.group === '도구' && s.description === p.label && s.keys[0] === p.shortcut!.slice(3))).toBe(true);
+      expect(SHORTCUT_LIST.some((s) => s.group === 'tools' && s.description === `preset.${id}.label` && s.keys[0] === p.shortcut!.slice(3))).toBe(true);
     }
   });
 });

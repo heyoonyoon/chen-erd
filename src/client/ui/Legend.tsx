@@ -4,31 +4,37 @@
 import type { ReactNode } from 'react';
 import { NODE_PRESETS, type PresetId } from '../../shared/types';
 import { PresetIcon } from '../canvas/PresetIcon';
+import { useLocale, useT, type MessageKey } from '../i18n';
 import { ui } from '../state/ui';
 import './Legend.css';
 
+/** 이름과 설명은 사전 키로 두고 그릴 때 현재 언어로 바꾼다 */
 interface LegendRow {
   key: string;
   icon: ReactNode;
-  name: string;
+  name: MessageKey;
+  /** 영어 이름(수업 용어). 영어 화면에서는 이름과 겹치므로 보여 주지 않는다 */
   nameEn: string;
-  description: string;
+  description: MessageKey;
 }
 
 interface LegendSection {
-  title: string;
+  id: string;
+  title: MessageKey;
   rows: LegendRow[];
 }
 
+/** 표기법 안내에 나오는 프리셋(메모는 표기법이 아니라서 뺀다) */
+type LegendPresetId = Exclude<PresetId, 'note'>;
+
 /** 프리셋 도형 한 줄. 이름은 프리셋의 것을 쓰되 필요하면 바꿔 적는다. */
-function presetRow(id: PresetId, description: string, name?: string): LegendRow {
-  const preset = NODE_PRESETS[id];
+function presetRow(id: LegendPresetId, name?: MessageKey): LegendRow {
   return {
     key: id,
     icon: <PresetIcon presetId={id} size={30} />,
-    name: name ?? preset.label,
-    nameEn: preset.labelEn,
-    description,
+    name: name ?? `preset.${id}.label`,
+    nameEn: NODE_PRESETS[id].labelEn,
+    description: `legend.${id}.desc`,
   };
 }
 
@@ -101,95 +107,96 @@ function CloseIcon() {
 
 export const LEGEND_SECTIONS: LegendSection[] = [
   {
-    title: '엔티티',
-    rows: [
-      presetRow('entity', '직사각형. 독립적으로 존재하는 개체', '엔티티 타입'),
-      presetRow('weak-entity', '이중 직사각형. 식별 관계의 소유 엔티티에 의존'),
-    ],
+    id: 'entity',
+    title: 'legend.section.entity',
+    rows: [presetRow('entity', 'legend.entity.name'), presetRow('weak-entity')],
   },
   {
-    title: '관계',
-    rows: [
-      presetRow('relationship', '마름모. 엔티티 사이의 연관', '관계 타입'),
-      presetRow('identifying-relationship', '이중 마름모. 약한 엔티티를 소유 엔티티와 연결'),
-    ],
+    id: 'relationship',
+    title: 'legend.section.relationship',
+    rows: [presetRow('relationship', 'legend.relationship.name'), presetRow('identifying-relationship')],
   },
   {
-    title: '속성',
+    id: 'attribute',
+    title: 'legend.section.attribute',
     rows: [
-      presetRow('attribute', '타원. 엔티티나 관계가 갖는 성질'),
-      presetRow('key-attribute', '이름에 밑줄. 개체를 유일하게 구분'),
-      presetRow('partial-key-attribute', '이름에 점선 밑줄. 약한 엔티티의 부분 식별자'),
-      presetRow('multivalued-attribute', '이중 타원. 값을 여러 개 가질 수 있음'),
-      presetRow('derived-attribute', '점선 타원. 다른 값에서 계산되는 값'),
+      presetRow('attribute'),
+      presetRow('key-attribute'),
+      presetRow('partial-key-attribute'),
+      presetRow('multivalued-attribute'),
       {
         key: 'composite',
         icon: <CompositeGlyph />,
-        name: '복합 속성',
+        name: 'legend.composite.name',
         nameEn: 'Composite attribute',
-        description: '속성에 하위 속성을 선으로 연결',
+        description: 'legend.composite.desc',
       },
     ],
   },
   {
-    title: '선',
+    id: 'line',
+    title: 'legend.section.line',
     rows: [
       {
         key: 'single',
         icon: <ParticipationGlyph />,
-        name: '단선',
+        name: 'term.singleLine',
         nameEn: 'Partial participation',
-        description: '부분 참여. 일부 개체만 관계에 참여',
+        description: 'legend.single.desc',
       },
       {
         key: 'double',
         icon: <ParticipationGlyph double />,
-        name: '이중선',
+        name: 'term.doubleLine',
         nameEn: 'Total participation',
-        description: '전체 참여. 모든 개체가 관계에 참여',
+        description: 'legend.double.desc',
       },
       {
         key: 'cardinality',
         icon: <CardinalityGlyph />,
-        name: '카디널리티',
+        name: 'term.cardinality',
         nameEn: 'Cardinality',
-        description: '선 옆에 1, M, N을 적어 대응 수를 표시',
+        description: 'legend.cardinality.desc',
       },
     ],
   },
   {
-    title: '특수화',
+    id: 'spec',
+    title: 'legend.section.spec',
     rows: [
-      presetRow('spec-d', '원 안의 d(disjoint). 서브타입이 겹치지 않음'),
-      presetRow('spec-o', '원 안의 o(overlap). 서브타입이 겹칠 수 있음'),
+      presetRow('spec-d'),
+      presetRow('spec-o'),
       {
         key: 'spec-total',
         icon: <SpecLineGlyph double />,
-        name: '전체 특수화',
+        name: 'legend.specTotal.name',
         nameEn: 'Total specialization',
-        description: '슈퍼타입과 원 사이가 이중선',
+        description: 'legend.specTotal.desc',
       },
       {
         key: 'spec-partial',
         icon: <SpecLineGlyph />,
-        name: '부분 특수화',
+        name: 'legend.specPartial.name',
         nameEn: 'Partial specialization',
-        description: '슈퍼타입과 원 사이가 단선',
+        description: 'legend.specPartial.desc',
       },
     ],
   },
 ];
 
 export function Legend() {
+  const t = useT();
+  const locale = useLocale();
   return (
-    <aside className="legend panel" data-testid="legend" aria-label="표기법 안내">
+    <aside className="legend panel" data-testid="legend" aria-label={t('legend.title')}>
       <header className="legend-head">
-        <h2 className="legend-title">표기법 안내</h2>
+        <h2 className="legend-title">{t('legend.title')}</h2>
         <button
           type="button"
           className="btn btn-ghost btn-icon legend-close"
           data-testid="legend-close"
-          aria-label="닫기"
+          aria-label={t('common.close')}
+          title={t('common.close')}
           onClick={() => ui().togglePanel('legend', false)}
         >
           <CloseIcon />
@@ -197,23 +204,23 @@ export function Legend() {
       </header>
       <div className="legend-body">
         {LEGEND_SECTIONS.map((section) => (
-          <section key={section.title} className="legend-section">
-            <h3 className="legend-section-title">{section.title}</h3>
+          <section key={section.id} className="legend-section">
+            <h3 className="legend-section-title">{t(section.title)}</h3>
             <ul className="legend-list">
               {section.rows.map((row) => (
                 <li key={row.key} className="legend-row">
                   <span className="legend-icon">{row.icon}</span>
                   <span className="legend-text">
-                    <span className="legend-name">{row.name}</span>
-                    <span className="legend-en">{row.nameEn}</span>
-                    <span className="legend-desc">{row.description}</span>
+                    <span className="legend-name">{t(row.name)}</span>
+                    {locale !== 'en' && <span className="legend-en">{row.nameEn}</span>}
+                    <span className="legend-desc">{t(row.description)}</span>
                   </span>
                 </li>
               ))}
             </ul>
           </section>
         ))}
-        <p className="legend-foot">Chen 표기법 기준</p>
+        <p className="legend-foot">{t('legend.foot')}</p>
       </div>
     </aside>
   );

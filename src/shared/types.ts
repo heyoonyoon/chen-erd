@@ -3,6 +3,8 @@
  * (CORE 파일: 담당 에이전트 외에는 수정하지 않는다.)
  */
 
+import type { SharedMessage } from './messages';
+
 // ───────────────────────── 도형(노드) ─────────────────────────
 
 /** 캔버스에 놓이는 도형의 종류. 세부 모양은 아래 플래그로 구분한다. */
@@ -30,7 +32,10 @@ export interface ErdNode {
   identifying?: boolean;
   /** attribute 전용: 다중값 속성(이중 타원) */
   multivalued?: boolean;
-  /** attribute 전용: 유도 속성(점선 타원) */
+  /**
+   * attribute 전용: 유도 속성(점선 타원). 화면에서는 더 이상 만들거나 고를 수 없다.
+   * 이미 저장된 다이어그램이 그대로 열리고 점선으로 그려지도록 필드와 그리기만 남겨 둔다.
+   */
   derived?: boolean;
   /** attribute 전용: 식별자 표시 */
   keyType?: KeyType;
@@ -82,41 +87,35 @@ export type PresetId =
   | 'key-attribute'
   | 'partial-key-attribute'
   | 'multivalued-attribute'
-  | 'derived-attribute'
   | 'spec-d'
   | 'spec-o'
   | 'note';
 
 export interface NodePreset {
   id: PresetId;
-  /** 한국어 이름 (툴바, 도움말에 표시) */
-  label: string;
-  /** 영어 이름 (수업 용어) */
+  /** 영어 이름 (수업 용어). 화면에 보이는 이름과 새 도형의 기본 글자는 언어 사전에 있다(preset.<id>.label, preset.<id>.text) */
   labelEn: string;
   kind: NodeKind;
   /** kind 외에 미리 켜 둘 플래그 */
   props: Partial<ErdNode>;
   w: number;
   h: number;
-  /** 새로 놓을 때의 기본 글자 */
-  defaultText: string;
   /** 단축키. KeyboardEvent.code 값 (한글 입력 상태에서도 동작하도록 code를 쓴다). 없으면 null. */
   shortcut: string | null;
 }
 
 export const NODE_PRESETS: Record<PresetId, NodePreset> = {
-  entity: { id: 'entity', label: '엔티티', labelEn: 'Entity type', kind: 'entity', props: {}, w: 140, h: 60, defaultText: '엔티티', shortcut: 'KeyE' },
-  'weak-entity': { id: 'weak-entity', label: '약한 엔티티', labelEn: 'Weak entity type', kind: 'entity', props: { weak: true }, w: 150, h: 66, defaultText: '약한 엔티티', shortcut: 'KeyW' },
-  relationship: { id: 'relationship', label: '관계', labelEn: 'Relationship type', kind: 'relationship', props: {}, w: 140, h: 80, defaultText: '관계', shortcut: 'KeyR' },
-  'identifying-relationship': { id: 'identifying-relationship', label: '식별 관계', labelEn: 'Identifying relationship type', kind: 'relationship', props: { identifying: true }, w: 156, h: 92, defaultText: '식별 관계', shortcut: 'KeyI' },
-  attribute: { id: 'attribute', label: '속성', labelEn: 'Attribute', kind: 'attribute', props: {}, w: 120, h: 50, defaultText: '속성', shortcut: 'KeyA' },
-  'key-attribute': { id: 'key-attribute', label: '식별자(키)', labelEn: 'Identifier', kind: 'attribute', props: { keyType: 'key' }, w: 120, h: 50, defaultText: '식별자', shortcut: 'KeyK' },
-  'partial-key-attribute': { id: 'partial-key-attribute', label: '부분 키', labelEn: 'Partial key', kind: 'attribute', props: { keyType: 'partial' }, w: 120, h: 50, defaultText: '부분 키', shortcut: 'KeyP' },
-  'multivalued-attribute': { id: 'multivalued-attribute', label: '다중값 속성', labelEn: 'Multivalued attribute', kind: 'attribute', props: { multivalued: true }, w: 130, h: 56, defaultText: '다중값', shortcut: 'KeyM' },
-  'derived-attribute': { id: 'derived-attribute', label: '유도 속성', labelEn: 'Derived attribute', kind: 'attribute', props: { derived: true }, w: 120, h: 50, defaultText: '유도 속성', shortcut: 'KeyD' },
-  'spec-d': { id: 'spec-d', label: '특수화 d', labelEn: 'Disjoint specialization', kind: 'spec', props: { specType: 'd' }, w: 34, h: 34, defaultText: '', shortcut: null },
-  'spec-o': { id: 'spec-o', label: '특수화 o', labelEn: 'Overlap specialization', kind: 'spec', props: { specType: 'o' }, w: 34, h: 34, defaultText: '', shortcut: null },
-  note: { id: 'note', label: '메모', labelEn: 'Note', kind: 'note', props: {}, w: 160, h: 50, defaultText: '메모', shortcut: 'KeyT' },
+  entity: { id: 'entity', labelEn: 'Entity type', kind: 'entity', props: {}, w: 140, h: 60, shortcut: 'KeyE' },
+  'weak-entity': { id: 'weak-entity', labelEn: 'Weak entity type', kind: 'entity', props: { weak: true }, w: 150, h: 66, shortcut: 'KeyW' },
+  relationship: { id: 'relationship', labelEn: 'Relationship type', kind: 'relationship', props: {}, w: 140, h: 80, shortcut: 'KeyR' },
+  'identifying-relationship': { id: 'identifying-relationship', labelEn: 'Identifying relationship type', kind: 'relationship', props: { identifying: true }, w: 156, h: 92, shortcut: 'KeyI' },
+  attribute: { id: 'attribute', labelEn: 'Attribute', kind: 'attribute', props: {}, w: 120, h: 50, shortcut: 'KeyA' },
+  'key-attribute': { id: 'key-attribute', labelEn: 'Identifier', kind: 'attribute', props: { keyType: 'key' }, w: 120, h: 50, shortcut: 'KeyK' },
+  'partial-key-attribute': { id: 'partial-key-attribute', labelEn: 'Partial key', kind: 'attribute', props: { keyType: 'partial' }, w: 120, h: 50, shortcut: 'KeyP' },
+  'multivalued-attribute': { id: 'multivalued-attribute', labelEn: 'Multivalued attribute', kind: 'attribute', props: { multivalued: true }, w: 130, h: 56, shortcut: 'KeyM' },
+  'spec-d': { id: 'spec-d', labelEn: 'Disjoint specialization', kind: 'spec', props: { specType: 'd' }, w: 34, h: 34, shortcut: null },
+  'spec-o': { id: 'spec-o', labelEn: 'Overlap specialization', kind: 'spec', props: { specType: 'o' }, w: 34, h: 34, shortcut: null },
+  note: { id: 'note', labelEn: 'Note', kind: 'note', props: {}, w: 160, h: 50, shortcut: 'KeyT' },
 };
 
 export const PRESET_ORDER: PresetId[] = [
@@ -128,7 +127,6 @@ export const PRESET_ORDER: PresetId[] = [
   'key-attribute',
   'partial-key-attribute',
   'multivalued-attribute',
-  'derived-attribute',
   'spec-d',
   'spec-o',
   'note',
@@ -143,7 +141,6 @@ export function presetOf(node: ErdNode): PresetId {
       return node.identifying ? 'identifying-relationship' : 'relationship';
     case 'attribute':
       if (node.multivalued) return 'multivalued-attribute';
-      if (node.derived) return 'derived-attribute';
       if (node.keyType === 'key') return 'key-attribute';
       if (node.keyType === 'partial') return 'partial-key-attribute';
       return 'attribute';
@@ -236,7 +233,9 @@ export const STYLE = {
   doubleGap: 5,
   fontSize: 14,
   lineHeight: 18,
-  fontFamily: "'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif",
+  // Pretendard에 없는 글자(일본어 가나, 한자, 베트남어 성조 글자)는 뒤의 시스템 글꼴이 맡는다
+  fontFamily:
+    "'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'PingFang SC', 'PingFang TC', 'Microsoft YaHei', 'Microsoft JhengHei', 'Noto Sans CJK KR', 'Noto Sans CJK JP', 'Noto Sans CJK SC', 'Noto Sans CJK TC', system-ui, sans-serif",
   /** 선택 표시 색 */
   accent: '#0d6efd',
   /** 카디널리티 글자 크기 */
@@ -257,8 +256,8 @@ export interface Issue {
   /** 같은 문제를 구분하는 안정적인 키 */
   id: string;
   severity: 'error' | 'warning';
-  /** 한국어 설명 */
-  message: string;
+  /** 설명. 문장이 아니라 메시지(키와 값)이고, 화면에 보일 때 현재 언어로 바꾼다 */
+  message: SharedMessage;
   /** 관련된 노드/엣지 id (클릭하면 화면에서 강조) */
   elementIds: string[];
 }

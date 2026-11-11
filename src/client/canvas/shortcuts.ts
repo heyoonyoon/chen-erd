@@ -12,6 +12,7 @@ import { deleteSelection, nudgeSelection, redo, selectAll, undo } from '../actio
 import { copySelectionText, cutSelectionText, duplicateSelection, pasteText } from '../collab/clipboard';
 import { useRoom } from '../collab/hooks';
 import type { Room } from '../collab/room';
+import { t, type MessageKey } from '../i18n';
 import { ui } from '../state/ui';
 import { toast } from '../ui/toast';
 import { setZoom, zoomBy, zoomToRect } from './ViewportControls';
@@ -235,7 +236,7 @@ export function handleShortcutKey(e: KeyboardEvent, room: Room): boolean {
   // 저장 창은 입력창에 포커스가 있어도 막는다. 문서는 바뀔 때마다 서버에 저장된다.
   if (mod && !otherMod && !e.altKey && !e.shiftKey && e.code === 'KeyS') {
     e.preventDefault();
-    if (!e.repeat) toast('변경 내용은 자동으로 저장됩니다');
+    if (!e.repeat) toast(t('toast.autosave'));
     return true;
   }
 
@@ -318,17 +319,22 @@ export function useShortcuts(): void {
 
 // ───────────────────────── 도움말 목록 ─────────────────────────
 
+/** 도움말의 묶음. 화면에는 help.group.<이름> 문장으로 보인다 */
+export type ShortcutGroup = 'tools' | 'edit' | 'view' | 'misc';
+
+/** 표시용 키. 글자 그대로 보이는 키 이름이거나, 언어마다 다르게 적는 키(방향키)의 사전 키 */
+export type ShortcutKey = string | { label: MessageKey };
+
 export interface ShortcutInfo {
-  /** 표시용 키 이름 목록. 예: ['⌘', 'Z'] */
-  keys: string[];
-  /** 한국어 설명 */
-  description: string;
-  /** 묶음 이름. 예: '도구', '편집', '화면' */
-  group: string;
+  /** 표시용 키 목록. 예: ['⌘', 'Z'] */
+  keys: ShortcutKey[];
+  /** 설명 문장의 사전 키 */
+  description: MessageKey;
+  group: ShortcutGroup;
 }
 
 /** 도움말에 묶음을 보여 주는 순서 */
-export const SHORTCUT_GROUPS = ['도구', '편집', '화면', '기타'] as const;
+export const SHORTCUT_GROUPS = ['tools', 'edit', 'view', 'misc'] as const satisfies readonly ShortcutGroup[];
 
 /** 'KeyE' → 'E' */
 function codeLabel(code: string): string {
@@ -338,40 +344,41 @@ function codeLabel(code: string): string {
 }
 
 const { mod: MOD, shift: SHIFT } = KEY_LABEL;
+const ARROW_KEYS: ShortcutKey = { label: 'shortcut.arrowKeys' };
 
-/** 도움말에 보여 줄 단축키 목록 */
+/** 도움말에 보여 줄 단축키 목록. 설명은 사전 키로 두고 그릴 때 현재 언어로 바꾼다 */
 export const SHORTCUT_LIST: ShortcutInfo[] = [
-  { group: '도구', keys: ['V'], description: '선택' },
-  { group: '도구', keys: ['H'], description: '손(화면 이동)' },
-  { group: '도구', keys: ['L'], description: '단선 연결' },
-  { group: '도구', keys: [SHIFT, 'L'], description: '이중선 연결' },
+  { group: 'tools', keys: ['V'], description: 'tool.select.label' },
+  { group: 'tools', keys: ['H'], description: 'shortcut.pan' },
+  { group: 'tools', keys: ['L'], description: 'tool.connect.label' },
+  { group: 'tools', keys: [SHIFT, 'L'], description: 'tool.connect-double.label' },
   ...PRESET_ORDER.filter((id) => NODE_PRESETS[id].shortcut && TOOL_KEYS[NODE_PRESETS[id].shortcut!] === placeTool(id)).map(
-    (id): ShortcutInfo => ({ group: '도구', keys: [codeLabel(NODE_PRESETS[id].shortcut!)], description: NODE_PRESETS[id].label }),
+    (id): ShortcutInfo => ({ group: 'tools', keys: [codeLabel(NODE_PRESETS[id].shortcut!)], description: `preset.${id}.label` }),
   ),
 
-  { group: '편집', keys: [MOD, 'Z'], description: '실행 취소' },
-  { group: '편집', keys: [MOD, SHIFT, 'Z'], description: '다시 실행' },
-  ...(IS_MAC ? [] : [{ group: '편집', keys: ['Ctrl', 'Y'], description: '다시 실행' }]),
-  { group: '편집', keys: [MOD, 'C'], description: '복사' },
-  { group: '편집', keys: [MOD, 'X'], description: '잘라내기' },
-  { group: '편집', keys: [MOD, 'V'], description: '붙여넣기' },
-  { group: '편집', keys: [MOD, 'D'], description: '복제' },
-  { group: '편집', keys: [MOD, 'A'], description: '모두 선택' },
-  { group: '편집', keys: [KEY_LABEL.delete], description: '삭제' },
-  { group: '편집', keys: ['방향키'], description: '1px 이동' },
-  { group: '편집', keys: [SHIFT, '방향키'], description: '10px 이동' },
-  { group: '편집', keys: ['Enter'], description: '글자 편집' },
-  { group: '편집', keys: ['F2'], description: '글자 편집' },
+  { group: 'edit', keys: [MOD, 'Z'], description: 'common.undo' },
+  { group: 'edit', keys: [MOD, SHIFT, 'Z'], description: 'common.redo' },
+  ...(IS_MAC ? [] : [{ group: 'edit', keys: ['Ctrl', 'Y'], description: 'common.redo' } satisfies ShortcutInfo]),
+  { group: 'edit', keys: [MOD, 'C'], description: 'common.copy' },
+  { group: 'edit', keys: [MOD, 'X'], description: 'common.cut' },
+  { group: 'edit', keys: [MOD, 'V'], description: 'common.paste' },
+  { group: 'edit', keys: [MOD, 'D'], description: 'common.duplicate' },
+  { group: 'edit', keys: [MOD, 'A'], description: 'common.selectAll' },
+  { group: 'edit', keys: [KEY_LABEL.delete], description: 'common.delete' },
+  { group: 'edit', keys: [ARROW_KEYS], description: 'shortcut.move1' },
+  { group: 'edit', keys: [SHIFT, ARROW_KEYS], description: 'shortcut.move10' },
+  { group: 'edit', keys: ['Enter'], description: 'common.editText' },
+  { group: 'edit', keys: ['F2'], description: 'common.editText' },
 
-  { group: '화면', keys: [MOD, '+'], description: '확대' },
-  { group: '화면', keys: [MOD, '−'], description: '축소' },
-  { group: '화면', keys: [MOD, '0'], description: '100%로 보기' },
-  { group: '화면', keys: [SHIFT, '1'], description: '전체 보기' },
-  { group: '화면', keys: ['G'], description: '격자 켜기/끄기' },
-  { group: '화면', keys: ['Space'], description: '누른 채 끌어서 화면 이동' },
+  { group: 'view', keys: [MOD, '+'], description: 'common.zoomIn' },
+  { group: 'view', keys: [MOD, '−'], description: 'common.zoomOut' },
+  { group: 'view', keys: [MOD, '0'], description: 'shortcut.zoomReset' },
+  { group: 'view', keys: [SHIFT, '1'], description: 'common.fit' },
+  { group: 'view', keys: ['G'], description: 'shortcut.grid' },
+  { group: 'view', keys: ['Space'], description: 'shortcut.spacePan' },
 
-  { group: '기타', keys: ['Esc'], description: '취소, 선택 해제' },
-  { group: '기타', keys: ['?'], description: '단축키 도움말' },
-  { group: '기타', keys: ['Enter'], description: '글자 편집 중 확정' },
-  { group: '기타', keys: [SHIFT, 'Enter'], description: '글자 편집 중 줄바꿈' },
+  { group: 'misc', keys: ['Esc'], description: 'shortcut.escape' },
+  { group: 'misc', keys: ['?'], description: 'shortcut.help' },
+  { group: 'misc', keys: ['Enter'], description: 'shortcut.commitText' },
+  { group: 'misc', keys: [SHIFT, 'Enter'], description: 'shortcut.newline' },
 ];

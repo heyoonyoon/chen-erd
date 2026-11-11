@@ -97,8 +97,6 @@ function shape(presetId: PresetId, color: string): ReactNode {
           <ellipse cx={C} cy={C} rx={9.4} ry={5.9} strokeWidth={1.3} />
         </>
       );
-    case 'derived-attribute':
-      return <ellipse cx={C} cy={C} rx={11.5} ry={7.5} strokeDasharray="3.2 2.4" />;
     case 'spec-d':
       return (
         <>

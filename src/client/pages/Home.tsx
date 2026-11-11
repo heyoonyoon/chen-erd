@@ -4,17 +4,31 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
 import { ROOM_ID_PATTERN, USER_COLORS } from '../../shared/types';
+import { APP_NAME, formatDateTime, formatNumber, useT, type MessageKey } from '../i18n';
+import { LanguageSelect } from '../i18n/LanguageSelect';
 import { forgetRoom, getIdentity, getRecentRooms, saveIdentity, type RecentRoom } from '../identity';
 import { navigate, newRoomId, roomPath } from '../router';
+import { REPO_URL, formatStars, useGithubStars } from './githubStars';
 import { HomeNotation } from './HomeNotation';
 import { HomePreview, NamedCursor } from './HomePreview';
 import { extractRoomId, relativeTime } from './homeUtils';
+import { Reveal } from './motion';
 import './Home.css';
 
 const NAME_MAX = 20;
-const UNTITLED = '제목 없는 다이어그램';
 /** USER_COLORS와 같은 순서의 색 이름(화면 낭독기용) */
-const COLOR_NAMES = ['빨강', '주황', '노랑', '초록', '청록', '하늘', '파랑', '보라', '분홍', '갈색'];
+const COLOR_NAMES: MessageKey[] = [
+  'color.red',
+  'color.orange',
+  'color.yellow',
+  'color.green',
+  'color.teal',
+  'color.sky',
+  'color.blue',
+  'color.purple',
+  'color.pink',
+  'color.brown',
+];
 
 /** 주소로 갈 수 없는 id가 섞여 있으면 뺀다 */
 function loadRecent(): RecentRoom[] {
@@ -22,21 +36,43 @@ function loadRecent(): RecentRoom[] {
 }
 
 /** 마름모 하나로 된 표식. 한 가지 색의 선으로만 그린다 */
-function LogoMark({ size = 20 }: { size?: number }) {
+function LogoMark() {
   return (
-    <svg className="home-logo" width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+    <svg className="home-logo" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
       <path d="M10 2.5 18 10l-8 7.5L2 10Z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
     </svg>
   );
 }
 
-const FACTS: Array<{ title: string; body: string }> = [
-  { title: '한 캔버스, 여러 포인터', body: '같은 방에 들어온 팀원의 포인터와 선택한 도형이 이름표와 함께 보입니다' },
-  { title: '표기법 검증', body: '식별자가 없는 엔티티와 카디널리티가 빠진 선을 찾아 알려 줍니다' },
-  { title: '보고서에 넣는 그림', body: 'PNG와 SVG로 저장하거나 클립보드로 복사해 문서에 붙여 넣습니다' },
+/** GitHub 저장소로 가는 링크. 별 수를 알면 숫자를, 모르면 이름을 로고 옆에 적는다 */
+function GithubLink() {
+  const t = useT();
+  const stars = useGithubStars();
+  return (
+    <a
+      className="home-gh"
+      href={REPO_URL}
+      target="_blank"
+      rel="noreferrer noopener"
+      aria-label={stars === null ? t('home.github.open') : t('home.github.openWithStars', { count: stars, stars: formatNumber(stars) })}
+      data-testid="github-link"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+      </svg>
+      <span className="home-gh-count">{stars === null ? 'GitHub' : formatStars(stars)}</span>
+    </a>
+  );
+}
+
+const FACTS: Array<{ title: MessageKey; body: MessageKey }> = [
+  { title: 'home.fact.pointers.title', body: 'home.fact.pointers.body' },
+  { title: 'home.fact.validation.title', body: 'home.fact.validation.body' },
+  { title: 'home.fact.export.title', body: 'home.fact.export.body' },
 ];
 
 export function Home() {
+  const t = useT();
   const [me, setMe] = useState(getIdentity);
   const [name, setName] = useState(() => me.name.slice(0, NAME_MAX));
   const [joinValue, setJoinValue] = useState('');
@@ -53,9 +89,11 @@ export function Home() {
   const profileTitleId = useId();
   const notationTitleId = useId();
 
+  // 검색 엔진이 그린 뒤의 제목을 쓰므로 이름만이 아니라 무엇을 하는 곳인지까지 적는다
+  const pageTitle = t('home.pageTitle');
   useEffect(() => {
-    document.title = 'Chen ERD';
-  }, []);
+    document.title = pageTitle;
+  }, [pageTitle]);
 
   // 다른 탭에서 방을 열거나 시간이 흐르면 최근 목록과 "N분 전" 표시를 맞춘다
   useEffect(() => {
@@ -111,7 +149,7 @@ export function Home() {
     setRecent(loadRecent());
   };
 
-  const shownName = name.trim() || '익명';
+  const shownName = name.trim() || t('presence.anonymous');
   const initial = name.trim().slice(0, 1) || '?';
 
   const focusField = (el: HTMLInputElement | null) => {
@@ -122,18 +160,24 @@ export function Home() {
 
   return (
     <div className="home">
-      <nav className="home-nav" aria-label="상단">
+      <nav className="home-nav" aria-label={t('home.nav.label')}>
         <div className="home-nav-inner">
-          <div className="home-brand">
-            <LogoMark />
-            <span className="home-brand-name">Chen ERD</span>
+          <div className="home-nav-start">
+            <div className="home-brand">
+              <LogoMark />
+              <span className="home-brand-name">{APP_NAME}</span>
+            </div>
+            <GithubLink />
           </div>
-          <button type="button" className="home-me-chip" title="이름과 색 바꾸기" onClick={focusName}>
-            <span className="home-avatar" style={{ background: me.color }}>
-              {initial}
-            </span>
-            <span className="home-me-chip-name">{name.trim() || '이름 정하기'}</span>
-          </button>
+          <div className="home-nav-end">
+            <LanguageSelect className="home-lang" />
+            <button type="button" className="home-me-chip" title={t('home.profile.edit')} onClick={focusName}>
+              <span className="home-avatar" style={{ background: me.color }}>
+                {initial}
+              </span>
+              <span className="home-me-chip-name">{name.trim() || t('home.profile.setName')}</span>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -141,20 +185,19 @@ export function Home() {
         <header className="home-hero">
           <div className="home-hero-inner">
             <div className="home-hero-copy">
+              {/* 줄을 나누는 자리는 언어마다 다르므로 두 줄을 따로 번역한다 */}
               <h1 className="home-title">
-                팀원과 함께 그리는
+                {t('home.hero.title1')}
                 <br />
-                Chen ERD
+                {t('home.hero.title2')}
               </h1>
-              <p className="home-lead">
-                링크만 공유하면 팀원이 바로 들어와 같은 화면에서 함께 그립니다. 수업에서 배운 Chen 표기법을 모두 지원합니다.
-              </p>
+              <p className="home-lead">{t('home.hero.lead')}</p>
               <div className="home-actions">
                 <button type="button" className="home-create" data-testid="create-room" onClick={createRoom}>
-                  새 다이어그램 만들기
+                  {t('home.hero.create')}
                 </button>
                 <button type="button" className="home-link" onClick={() => focusField(joinRef.current)}>
-                  초대 링크로 들어가기
+                  {t('home.hero.join')}
                 </button>
               </div>
             </div>
@@ -164,14 +207,14 @@ export function Home() {
 
         <div className="home-wrap">
           <div className="home-start">
-            <section aria-labelledby={recentTitleId} data-testid={recent.length > 0 ? 'recent-rooms' : undefined}>
+            <Reveal as="section" aria-labelledby={recentTitleId} data-testid={recent.length > 0 ? 'recent-rooms' : undefined}>
               <h2 id={recentTitleId} className="home-section-title">
-                최근에 연 다이어그램
+                {t('home.recent.title')}
               </h2>
               {recent.length > 0 ? (
                 <ul className="home-recent">
                   {recent.map((room) => {
-                    const title = (typeof room.title === 'string' && room.title.trim()) || UNTITLED;
+                    const title = (typeof room.title === 'string' && room.title.trim()) || t('doc.untitled');
                     const when = relativeTime(room.visitedAt, now);
                     return (
                       <li key={room.id} className="home-recent-item">
@@ -184,7 +227,7 @@ export function Home() {
                             <time
                               className="home-recent-time"
                               dateTime={new Date(room.visitedAt).toISOString()}
-                              title={new Date(room.visitedAt).toLocaleString('ko-KR')}
+                              title={formatDateTime(room.visitedAt)}
                             >
                               {when}
                             </time>
@@ -193,12 +236,12 @@ export function Home() {
                         <button
                           type="button"
                           className="home-recent-forget"
-                          title="이 목록에서만 지웁니다. 다이어그램 자체는 지워지지 않습니다"
-                          aria-label={`${title} 목록에서 지우기`}
+                          title={t('home.recent.forgetTitle')}
+                          aria-label={t('home.recent.forgetLabel', { title })}
                           data-testid="forget-room"
                           onClick={() => forget(room.id)}
                         >
-                          목록에서 지우기
+                          {t('home.recent.forget')}
                         </button>
                       </li>
                     );
@@ -206,16 +249,19 @@ export function Home() {
                 </ul>
               ) : (
                 <div className="home-empty">
-                  <p className="home-empty-title">아직 연 다이어그램이 없습니다</p>
-                  <p className="home-empty-body">새로 만들거나 초대 링크로 들어간 다이어그램이 여기에 쌓입니다</p>
+                  <p className="home-empty-title">{t('home.recent.emptyTitle')}</p>
+                  <p className="home-empty-body">{t('home.recent.emptyBody')}</p>
                 </div>
               )}
-            </section>
+              <p className="home-hint" data-testid="recent-expiry">
+                {t('home.recent.expiry')}
+              </p>
+            </Reveal>
 
-            <aside className="home-side">
-              <section className="home-join" aria-label="초대 링크로 들어가기">
+            <Reveal as="aside" className="home-side" delay={80}>
+              <section className="home-join" aria-label={t('home.hero.join')}>
                 <label className="home-label" htmlFor={joinId}>
-                  초대 링크나 방 코드로 들어가기
+                  {t('home.join.label')}
                 </label>
                 <div className="home-join-row">
                   <input
@@ -224,7 +270,7 @@ export function Home() {
                     className={joinError ? 'home-input is-invalid' : 'home-input'}
                     type="text"
                     value={joinValue}
-                    placeholder="초대 링크 또는 방 코드"
+                    placeholder={t('home.join.placeholder')}
                     autoComplete="off"
                     autoCapitalize="off"
                     spellCheck={false}
@@ -238,25 +284,25 @@ export function Home() {
                     onKeyDown={onJoinKeyDown}
                   />
                   <button type="button" className="home-btn" data-testid="join-button" onClick={join}>
-                    들어가기
+                    {t('home.join.submit')}
                   </button>
                 </div>
                 {joinError && (
                   <p id={joinErrorId} className="home-error" role="alert" data-testid="join-error">
-                    방 코드 형식이 올바르지 않습니다
+                    {t('home.join.error')}
                   </p>
                 )}
               </section>
 
               <section className="home-profile" aria-labelledby={profileTitleId}>
                 <h2 id={profileTitleId} className="home-section-title">
-                  내 프로필
+                  {t('home.profile.title')}
                 </h2>
                 <div className="home-profile-preview" aria-hidden="true">
                   <NamedCursor name={shownName} color={me.color} />
                 </div>
                 <label className="home-label" htmlFor={nameId}>
-                  내 이름
+                  {t('home.profile.name')}
                 </label>
                 <input
                   id={nameId}
@@ -265,17 +311,17 @@ export function Home() {
                   type="text"
                   value={name}
                   maxLength={NAME_MAX}
-                  placeholder="이름"
+                  placeholder={t('nickname.name')}
                   autoComplete="nickname"
                   spellCheck={false}
                   aria-describedby={nameHintId}
                   data-testid="name-input"
                   onChange={onNameChange}
                 />
-                <div className="home-colors" role="group" aria-label="내 색">
+                <div className="home-colors" role="group" aria-label={t('home.profile.color')}>
                   {USER_COLORS.map((color, i) => {
                     const active = color.toLowerCase() === me.color.toLowerCase();
-                    const label = COLOR_NAMES[i] ?? `색 ${i + 1}`;
+                    const label = COLOR_NAMES[i] ? t(COLOR_NAMES[i]) : t('home.profile.colorN', { n: i + 1 });
                     return (
                       <button
                         key={color}
@@ -292,40 +338,32 @@ export function Home() {
                   })}
                 </div>
                 <p id={nameHintId} className="home-hint">
-                  다른 팀원 화면에 이 이름과 색으로 표시됩니다
+                  {t('home.profile.hint')}
                 </p>
               </section>
-            </aside>
+            </Reveal>
           </div>
 
-          <section className="home-facts" aria-label="주요 기능">
-            {FACTS.map((f) => (
-              <div key={f.title} className="home-fact">
-                <h3 className="home-fact-title">{f.title}</h3>
-                <p className="home-fact-body">{f.body}</p>
-              </div>
+          <section className="home-facts" aria-label={t('home.facts.label')}>
+            {FACTS.map((f, i) => (
+              <Reveal key={f.title} className="home-fact" delay={i * 80}>
+                <h3 className="home-fact-title">{t(f.title)}</h3>
+                <p className="home-fact-body">{t(f.body)}</p>
+              </Reveal>
             ))}
           </section>
 
           <section className="home-notation" aria-labelledby={notationTitleId}>
-            <h2 id={notationTitleId} className="home-section-title">
-              지원하는 표기
-            </h2>
-            <p className="home-section-sub">선 옆의 1, M, N과 단선, 이중선으로 카디널리티와 참여 제약을 나타냅니다</p>
+            <Reveal>
+              <h2 id={notationTitleId} className="home-section-title">
+                {t('home.notation.title')}
+              </h2>
+              <p className="home-section-sub">{t('home.notation.sub')}</p>
+            </Reveal>
             <HomeNotation />
           </section>
         </div>
       </main>
-
-      <footer className="home-foot">
-        <div className="home-foot-inner">
-          <span className="home-foot-brand">
-            <LogoMark size={16} />
-            Chen ERD
-          </span>
-          <span>링크를 아는 사람은 누구나 편집할 수 있습니다. 변경 내용은 자동으로 저장됩니다.</span>
-        </div>
-      </footer>
     </div>
   );
 }

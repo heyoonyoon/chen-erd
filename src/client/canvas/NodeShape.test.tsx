@@ -1,13 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { NODE_PRESETS, PRESET_ORDER, STYLE, type ErdNode, type PresetId } from '../../shared/types';
+import { presetText } from '../i18n';
 import { measureText } from '../text/measure';
 import { NodeShape, type NodeShapeProps } from './NodeShape';
 import { PresetIcon } from './PresetIcon';
 
 function nodeOf(presetId: PresetId, over: Partial<ErdNode> = {}): ErdNode {
   const p = NODE_PRESETS[presetId];
-  return { id: `n-${presetId}`, kind: p.kind, x: 100, y: 200, w: p.w, h: p.h, text: p.defaultText, ...p.props, ...over };
+  return { id: `n-${presetId}`, kind: p.kind, x: 100, y: 200, w: p.w, h: p.h, text: presetText(presetId), ...p.props, ...over };
 }
 
 function render(presetId: PresetId, props: Partial<NodeShapeProps> = {}, over: Partial<ErdNode> = {}): string {
@@ -42,9 +43,15 @@ describe('NodeShape', () => {
     expect(html).toContain(`x="${100 + g}" y="${200 + g}" width="${150 - g * 2}" height="${66 - g * 2}"`);
   });
 
-  it('유도 속성만 점선 테두리다', () => {
-    expect(render('derived-attribute')).toContain('stroke-dasharray');
+  it('이미 저장된 유도 속성(derived)은 지금도 점선 테두리로 그린다', () => {
+    // 유도 속성은 화면에서 더 만들 수 없지만 예전에 만든 다이어그램에는 남아 있다
+    expect(PRESET_ORDER).not.toContain('derived-attribute');
+    expect(render('attribute', {}, { derived: true })).toContain('stroke-dasharray');
     expect(render('attribute')).not.toContain('stroke-dasharray');
+    // 다른 표시와 함께 있어도 점선은 유지된다
+    const multi = render('multivalued-attribute', {}, { derived: true });
+    expect(multi).toContain('stroke-dasharray');
+    expect(count(multi, 'ellipse')).toBe(2);
   });
 
   it('키는 줄마다 글자 너비만큼 실선 밑줄, 부분 키는 점선 밑줄을 긋는다', () => {
