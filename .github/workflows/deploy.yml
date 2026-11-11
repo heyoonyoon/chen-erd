@@ -31,7 +31,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_NAME: ghcr.io/heyoonyoon/chen-erd
+  IMAGE_NAME: ghcr.io/heyoonyoon/modelll
   APP_DIR: /opt/chen-erd
 
 jobs:

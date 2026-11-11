@@ -64,13 +64,13 @@ jobs:
           context: .
           push: false
           load: true
-          tags: chen-erd:ci
+          tags: modelll:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: 컨테이너 실행 확인
         run: |
-          docker run -d --name erd-ci -p 127.0.0.1:18787:8787 chen-erd:ci
+          docker run -d --name erd-ci -p 127.0.0.1:18787:8787 modelll:ci
           ok=0
           for _ in $(seq 1 30); do
             if curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:18787/api/health; then

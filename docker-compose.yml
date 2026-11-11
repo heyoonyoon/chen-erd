@@ -9,7 +9,7 @@ name: chen-erd
 
 services:
   app:
-    image: ghcr.io/heyoonyoon/chen-erd:${IMAGE_TAG:-latest}
+    image: ghcr.io/heyoonyoon/modelll:${IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     stop_grace_period: 15s
