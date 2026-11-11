@@ -8,6 +8,12 @@
 	reverse_proxy app:8787
 }
 
+# 주소를 바꾸기 전의 도메인. 이미 공유된 링크가 끊기지 않도록 새 주소로 넘긴다.
+# OLD_DOMAIN을 정하지 않으면 docker-compose.yml이 쓰이지 않는 HTTP 전용 이름을 넣어 주므로 인증서를 받지 않는다.
+{$OLD_DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
 # 도메인이 아닌 주소(서버 IP 등)로 들어온 HTTP 요청은 HTTPS 주소로 넘긴다.
 http:// {
 	redir https://{$DOMAIN}{uri}

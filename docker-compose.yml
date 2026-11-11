@@ -37,6 +37,8 @@ services:
       - app
     environment:
       DOMAIN: ${DOMAIN:-}
+      # 주소를 바꿨을 때 예전 도메인을 적으면 새 주소로 넘겨 준다. 비워 두면 쓰이지 않는 이름이 들어간다.
+      OLD_DOMAIN: ${OLD_DOMAIN:-http://old-domain.invalid}
     ports:
       - "80:80"
       - "443:443"
