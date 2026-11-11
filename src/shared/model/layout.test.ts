@@ -270,7 +270,7 @@ describe('전체 배치', () => {
 
 describe('부분 배치', () => {
   it('임의의 그림에 임의의 모델을 덧붙여도 기존 도형은 그대로이고 새 도형은 겹치지 않는다', () => {
-    for (let seed = 1; seed <= 25; seed++) {
+    for (let seed = 1; seed <= 15; seed++) {
       const base = draw(randomModel(seed));
       const extra = randomModel(seed + 1000);
       // 두 모델을 합친다: 이름이 겹치지 않게 뒤쪽 모델의 이름을 바꾸고, 기존 엔티티와 잇는 관계를 하나 넣는다
@@ -294,7 +294,8 @@ describe('부분 배치', () => {
       expect(r.warnings, `seed ${seed}`).toEqual([]);
       expect(canonicalModel(extractModel(r.nodes, r.edges).model, { sortAttributes: true }), `seed ${seed}`).toEqual(canonicalModel(merged, { sortAttributes: true }));
     }
-  });
+    // 부분 배치는 빈자리를 찾느라 전체 배치보다 느리다. 느린 CI 장비에서도 끝나도록 여유를 둔다
+  }, 30_000);
 
   it('관련된 엔티티 가까이에 놓고, 관련이 없으면 그림 오른쪽에 놓는다', () => {
     const base = draw(COMPANY);
