@@ -1,0 +1,6 @@
+# 방 주소(/r/...)는 여기서 막지 않는다. 막으면 검색 로봇이 응답에 붙은 noindex 표시를 읽지 못한다.
+User-agent: *
+Disallow: /api/
+Disallow: /ws/
+
+Sitemap: https://modelll.app/sitemap.xml

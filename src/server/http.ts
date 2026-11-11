@@ -30,6 +30,13 @@ export function createApp(deps: HttpDeps): Express {
     next();
   });
 
+  // 방은 주소를 받은 사람만 들어오는 곳이고 API는 화면이 아니다. 둘 다 검색에 나오지 않게 한다.
+  // robots.txt에서 /r/ 을 막지 않는 것도 검색 로봇이 이 표시를 읽게 하기 위해서다.
+  app.use((req, res, next) => {
+    if (isUnder(req.path, '/r') || isUnder(req.path, '/api')) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
+
   // ───────────────────────── API ─────────────────────────
 
   app.use('/api', (_req, res, next) => {
@@ -66,6 +73,7 @@ export function createApp(deps: HttpDeps): Express {
         } else if (filePath.endsWith('.html')) {
           res.setHeader('Cache-Control', 'no-cache');
         } else {
+          // robots.txt, sitemap.xml, 아이콘, og.png 같은 루트 파일. 이름이 그대로라 내용이 바뀔 수 있으니 짧게만 캐시한다
           res.setHeader('Cache-Control', 'public, max-age=3600');
         }
       },

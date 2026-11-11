@@ -1,14 +1,112 @@
 <!doctype html>
-<html lang="ko">
+<!-- lang은 시작할 때 고른 언어로 바뀐다(src/client/i18n). 제목의 제품 이름은 빌드할 때 src/shared/app.ts의 값이 들어간다 -->
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d6efd'/%3E%3Cpath d='M16 7 26 16 16 25 6 16Z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <!-- 화면이 뜨면 제목은 언어와 화면에 맞게 바뀐다. 여기 적힌 값은 스크립트를 돌리지 않는 검색 로봇과 링크 미리보기가 읽는다 -->
+    <title>%APP_NAME% | Collaborative ER diagram tool for Chen notation</title>
+    <meta name="description" content="%APP_NAME% is a free online ER diagram tool for Chen notation. Share a link and draw on the same canvas with your team in real time. Export as PNG or SVG." />
+    <meta name="application-name" content="%APP_NAME%" />
+    <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
+    <meta name="theme-color" content="#ffffff" />
+    <!-- 검색 결과에 큰 미리보기 그림을 써도 된다는 표시. 방 화면에서는 noindex 표시가 따로 붙는다(src/client/seo.ts) -->
+    <meta name="robots" content="max-image-preview:large" />
+    <!-- 검색에 나오는 주소는 첫 화면 하나다 -->
+    <link rel="canonical" href="https://modelll.app/" />
+
+    <!-- 아이콘. 그림 파일은 scripts/og/render.mjs로 만든다 -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- 링크를 붙여 넣었을 때 보이는 미리보기 -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%APP_NAME%" />
+    <meta property="og:title" content="%APP_NAME% | Collaborative ER diagram tool for Chen notation" />
+    <meta property="og:description" content="Free online ER diagram tool for Chen notation. Share a link and draw on the same canvas with your team in real time." />
+    <meta property="og:url" content="https://modelll.app/" />
+    <meta property="og:image" content="https://modelll.app/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="%APP_NAME%: an ER diagram in Chen notation being drawn by two people at once" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+    <meta property="og:locale:alternate" content="zh_TW" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:locale:alternate" content="fr_FR" />
+    <meta property="og:locale:alternate" content="de_DE" />
+    <meta property="og:locale:alternate" content="pt_BR" />
+    <meta property="og:locale:alternate" content="vi_VN" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%APP_NAME% | Collaborative ER diagram tool for Chen notation" />
+    <meta name="twitter:description" content="Free online ER diagram tool for Chen notation. Share a link and draw on the same canvas with your team in real time." />
+    <meta name="twitter:image" content="https://modelll.app/og.png" />
+    <meta name="twitter:image:alt" content="%APP_NAME%: an ER diagram in Chen notation being drawn by two people at once" />
+
+    <!-- 구조화 데이터. WebSite의 name이 검색 결과에 사이트 이름으로 쓰인다 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://modelll.app/#website",
+            "name": "%APP_NAME%",
+            "url": "https://modelll.app/",
+            "inLanguage": ["en", "ko", "ja", "zh-CN", "zh-TW", "es", "fr", "de", "pt-BR", "vi"]
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://modelll.app/#webpage",
+            "url": "https://modelll.app/",
+            "name": "%APP_NAME% | Collaborative ER diagram tool for Chen notation",
+            "isPartOf": { "@id": "https://modelll.app/#website" },
+            "about": { "@id": "https://modelll.app/#app" },
+            "primaryImageOfPage": {
+              "@type": "ImageObject",
+              "url": "https://modelll.app/og.png",
+              "width": 1200,
+              "height": 630
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://modelll.app/#app",
+            "name": "%APP_NAME%",
+            "url": "https://modelll.app/",
+            "description": "A free, real-time collaborative ER diagram tool for Chen notation. Share a link and everyone draws on the same canvas with live cursors, notation checks, and PNG or SVG export.",
+            "applicationCategory": "DesignApplication",
+            "operatingSystem": "Web",
+            "browserRequirements": "Requires JavaScript and a modern browser",
+            "isAccessibleForFree": true,
+            "image": "https://modelll.app/og.png",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-    <title>Chen ERD</title>
   </head>
   <body>
+    <!-- 스크립트를 돌리지 않는 곳에서만 보이는 글. 스크립트가 켜져 있으면 그려지지 않으므로 화면이 뜨기 전에 비치지 않는다. #root가 화면 높이를 다 쓰므로 그 앞에 둔다 -->
+    <noscript>
+      <main style="max-width: 640px; margin: 18vh auto 0; padding: 0 24px; font-size: 16px; line-height: 1.6; color: #171717">
+        <h1 style="font-size: 28px; line-height: 1.25">%APP_NAME%: draw ER diagrams with your team</h1>
+        <p>
+          %APP_NAME% is a free online ER diagram tool for Chen notation. Share a link and your teammates join right away and draw on the same canvas,
+          with live cursors, notation checks, and PNG or SVG export. Please turn on JavaScript to use it.
+        </p>
+      </main>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/client/main.tsx"></script>
   </body>

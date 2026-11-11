@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- 링크 미리보기 그림(public/og.png)의 원본. render.mjs가 이 화면을 1200x630으로 찍는다 -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+    <style>
+      :root {
+        --ink: #171717;
+        --dim: #525252;
+        --line: #e5e5e5;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: #ffffff;
+        color: var(--ink);
+        font-family: 'Pretendard Variable', 'Pretendard', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      /* 검색 결과의 작은 그림은 가운데만 잘라 쓰기도 한다. 이름과 문구를 가운데에 모아 둔다 */
+      .brand {
+        position: absolute;
+        top: 62px;
+        left: 0;
+        width: 1200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+      .brand svg { width: 84px; height: 84px; flex: none; }
+      .brand span { font-size: 112px; font-weight: 700; letter-spacing: -0.035em; line-height: 1; }
+      .tagline {
+        position: absolute;
+        top: 196px;
+        left: 0;
+        width: 1200px;
+        margin: 0;
+        text-align: center;
+        font-size: 48px;
+        font-weight: 500;
+        letter-spacing: -0.015em;
+        line-height: 1.2;
+        color: var(--dim);
+      }
+      .diagram { position: absolute; left: 0; top: 290px; width: 1200px; height: 340px; }
+      .diagram .shape { fill: #ffffff; stroke: var(--ink); stroke-width: 3.5; stroke-linejoin: miter; }
+      .diagram .link { fill: none; stroke: var(--ink); stroke-width: 3.5; }
+      .diagram text { fill: var(--ink); font-size: 30px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+      .diagram .card { font-size: 26px; font-weight: 600; }
+      .diagram .key { text-decoration: underline; }
+      .diagram .tag text { fill: #ffffff; font-size: 24px; font-weight: 600; text-anchor: start; }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M10 2.5 18 10l-8 7.5L2 10Z" fill="none" stroke="#171717" stroke-width="1.75" stroke-linejoin="round" />
+      </svg>
+      <span>modelll</span>
+    </div>
+    <p class="tagline">Draw ER diagrams together</p>
+
+    <svg class="diagram" viewBox="0 0 1200 340" aria-hidden="true">
+      <!-- 속성과 엔티티를 잇는 선 -->
+      <path class="link" d="M132 96 385 170M132 244 385 170M1068 96 815 170M1068 244 815 170" />
+      <!-- 엔티티와 관계를 잇는 선 -->
+      <path class="link" d="M385 170H815" />
+
+      <ellipse class="shape" cx="132" cy="96" rx="88" ry="40" />
+      <text class="key" x="132" y="96">ID</text>
+      <ellipse class="shape" cx="132" cy="244" rx="88" ry="40" />
+      <text x="132" y="244">Name</text>
+
+      <rect class="shape" x="300" y="126" width="170" height="88" />
+      <text x="385" y="170">Student</text>
+
+      <text class="card" x="489" y="146">M</text>
+      <path class="shape" d="M600 104 692 170 600 236 508 170Z" />
+      <text x="600" y="170">Enrolls</text>
+      <text class="card" x="711" y="146">N</text>
+
+      <rect class="shape" x="730" y="126" width="170" height="88" />
+      <text x="815" y="170">Course</text>
+
+      <ellipse class="shape" cx="1068" cy="96" rx="88" ry="40" />
+      <text class="key" x="1068" y="96">Code</text>
+      <ellipse class="shape" cx="1068" cy="244" rx="88" ry="40" />
+      <text x="1068" y="244">Credits</text>
+
+      <!-- 함께 그리는 사람의 포인터와 이름표 -->
+      <g class="tag" transform="translate(440 204)">
+        <path d="M2 2 L16.5 7.5 L9.6 9.6 L7.5 16.5 Z" transform="scale(2.4)" fill="#E5484D" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
+        <rect x="30" y="36" width="92" height="40" rx="12" fill="#E5484D" />
+        <text x="46" y="57">Mina</text>
+      </g>
+      <g class="tag" transform="translate(748 26)">
+        <path d="M2 2 L16.5 7.5 L9.6 9.6 L7.5 16.5 Z" transform="scale(2.4)" fill="#12A594" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
+        <rect x="30" y="36" width="86" height="40" rx="12" fill="#12A594" />
+        <text x="46" y="57">Alex</text>
+      </g>
+    </svg>
+  </body>
+</html>

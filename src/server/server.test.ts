@@ -300,4 +300,70 @@ describe('ERD 서버', () => {
     const b = connect('room-first');
     await waitFor(() => b.provider.synced && b.doc.getMap('nodes').get('n1') === 'x', '있는 방에 접속');
   });
+
+  it('검색 로봇이 읽는 루트 파일을 알맞은 형식과 짧은 캐시로 준다', async () => {
+    // 저장소의 public 폴더를 빌드 결과처럼 놓는다(vite가 public의 파일을 dist/client 바로 아래로 복사한다)
+    const staticDir = path.join(dataDir, 'client');
+    await fs.cp(path.join(process.cwd(), 'public'), staticDir, { recursive: true });
+    await fs.writeFile(path.join(staticDir, 'index.html'), '<!doctype html><title>erd</title>');
+    await boot({ dataDir: path.join(dataDir, 'data'), staticDir });
+
+    const types: Record<string, string> = {
+      '/robots.txt': 'text/plain',
+      '/sitemap.xml': 'application/xml',
+      '/site.webmanifest': 'application/manifest+json',
+      '/favicon.svg': 'image/svg+xml',
+      '/favicon-48.png': 'image/png',
+      '/favicon-96.png': 'image/png',
+      '/apple-touch-icon.png': 'image/png',
+      '/icon-192.png': 'image/png',
+      '/icon-512.png': 'image/png',
+      '/og.png': 'image/png',
+    };
+    for (const [p, type] of Object.entries(types)) {
+      const res = await api(p);
+      expect(res.status, p).toBe(200);
+      expect(res.headers.get('content-type'), p).toContain(type);
+      // 이름에 해시가 없는 파일이라 immutable로 두지 않는다
+      expect(res.headers.get('cache-control'), p).toBe('public, max-age=3600');
+      expect(res.headers.get('x-robots-tag'), p).toBeNull();
+      await res.arrayBuffer();
+    }
+    expect((await api('/favicon.ico')).status).toBe(200);
+
+    // 방 주소는 robots.txt에서 막지 않는다(막으면 noindex 표시를 읽지 못한다)
+    const rules = (await (await api('/robots.txt')).text()).split('\n').filter((line) => !line.startsWith('#'));
+    expect(rules).toContain('Disallow: /api/');
+    expect(rules).toContain('Disallow: /ws/');
+    expect(rules).toContain('Sitemap: https://modelll.app/sitemap.xml');
+    expect(rules.filter((line) => line.startsWith('Disallow:'))).toHaveLength(2);
+
+    // 사이트맵에는 첫 화면만 있다
+    const locs = [...(await (await api('/sitemap.xml')).text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    expect(locs).toEqual(['https://modelll.app/']);
+
+    const manifest = await (await api('/site.webmanifest')).json();
+    expect(manifest.name).toBe('modelll');
+    for (const icon of manifest.icons) expect((await api(icon.src)).status, icon.src).toBe(200);
+  });
+
+  it('방과 API 응답에는 noindex 표시를 붙이고 첫 화면에는 붙이지 않는다', async () => {
+    const staticDir = path.join(dataDir, 'client');
+    await fs.mkdir(staticDir, { recursive: true });
+    await fs.writeFile(path.join(staticDir, 'index.html'), '<!doctype html><title>erd</title>');
+    await boot({ dataDir: path.join(dataDir, 'data'), staticDir });
+
+    for (const p of ['/r/abc', '/r/abc/', '/api/health', '/api/rooms/abc', '/api/nope']) {
+      expect((await api(p)).headers.get('x-robots-tag'), p).toBe('noindex, nofollow');
+    }
+    const room = await api('/r/abc');
+    expect(room.status).toBe(200);
+    expect(room.headers.get('content-type')).toContain('text/html');
+
+    for (const p of ['/', '/index.html', '/rooms']) {
+      const res = await api(p);
+      expect(res.status, p).toBe(200);
+      expect(res.headers.get('x-robots-tag'), p).toBeNull();
+    }
+  });
 });
