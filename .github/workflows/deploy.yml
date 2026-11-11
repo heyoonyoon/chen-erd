@@ -4,6 +4,10 @@ name: Deploy
 #   1) Actions 탭에서 직접 실행(workflow_dispatch)
 #   2) main의 CI가 성공했고 저장소 변수 DEPLOY_ENABLED가 'true'일 때(workflow_run)
 # 변수를 만들지 않았다면 2)는 건너뛰므로 자동 배포는 일어나지 않는다.
+#
+# 버전은 릴리스 태그로 매긴다. v1.2.3 꼴의 태그를 골라 직접 실행하면 이미지에 그 태그가 붙고 서버도 그 태그로 실행한다.
+#   gh workflow run Deploy --ref v1.2.3
+# 태그가 아닌 커밋이나 브랜치를 고르면 커밋 SHA가 이미지 태그가 된다.
 
 on:
   workflow_dispatch:
@@ -50,6 +54,7 @@ jobs:
       packages: write
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
+      version: ${{ steps.commit.outputs.version }}
     steps:
       - name: 배포 설정 확인
         env:
@@ -71,9 +76,26 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
 
-      - name: 배포할 커밋 확인
+      # 릴리스 태그(v1.2.3 꼴)로 실행했으면 그 태그가 버전이고, 아니면 커밋 SHA가 버전이다.
+      - name: 배포할 커밋과 버전 확인
         id: commit
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          REQUESTED: ${{ inputs.ref || (github.ref_type == 'tag' && github.ref_name) || '' }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          version="$sha"
+          if [[ "$REQUESTED" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            version="$REQUESTED"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE_NAME}:latest"
+            echo "${IMAGE_NAME}:${sha}"
+            if [ "$version" != "$sha" ]; then echo "${IMAGE_NAME}:${version}"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       # 기본은 linux/amd64(t3 계열). Graviton(t4g 계열)이면 저장소 변수 IMAGE_PLATFORMS를 linux/arm64로 둔다.
       - uses: docker/setup-qemu-action@v4
@@ -93,12 +115,11 @@ jobs:
           context: .
           push: true
           platforms: ${{ vars.IMAGE_PLATFORMS || 'linux/amd64' }}
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ steps.commit.outputs.sha }}
+          tags: ${{ steps.commit.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.commit.outputs.version }}
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -113,6 +134,7 @@ jobs:
       packages: read
     env:
       SHA: ${{ needs.image.outputs.sha }}
+      VERSION: ${{ needs.image.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -179,13 +201,13 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GHCR_TOKEN" | ssh ec2 "docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
-          ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' up '${SHA}'"
+          ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' up '${VERSION}'"
 
       - name: 헬스 체크
         run: ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' health 60"
 
       - name: 배포 결과 기록
-        run: echo "배포한 이미지는 \`${IMAGE_NAME}:${SHA}\` 입니다." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "배포한 이미지는 \`${IMAGE_NAME}:${VERSION}\` 이고 커밋은 \`${SHA}\` 입니다." >> "$GITHUB_STEP_SUMMARY"
 
       - name: 정리
         if: always()
