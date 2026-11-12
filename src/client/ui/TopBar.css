@@ -88,6 +88,18 @@
 /* 언어 선택 */
 .topbar-language .language-select-button { padding: 0 6px; }
 
+/* 패널 메뉴는 넓은 창에서만 글자를 보인다. 그보다 좁으면 다른 버튼 글자보다 먼저 아이콘과 펼침 표시만 남긴다 */
+@media (max-width: 1280px) {
+  .topbar .panemenu-label, .topbar-panes-divider { display: none; }
+  .topbar .panemenu-button { gap: 2px; padding: 0 6px; }
+}
+/* 일본어는 버튼 글자가 길어서 패널 메뉴가 들어갈 자리를 제품 이름과 연결 상태 글자에서 먼저 낸다 */
+@media (max-width: 1080px) {
+  :root:lang(ja) .topbar-brand, :root:lang(ja) .topbar-divider { display: none; }
+}
+@media (max-width: 960px) {
+  :root:lang(ja) .topbar-status-label { display: none; }
+}
 /* AI 버튼의 글자는 다른 버튼보다 먼저 숨겨서 제목과 실행 취소 버튼이 들어갈 자리를 남긴다 */
 @media (max-width: 1200px) {
   :root:not(:lang(ko), :lang(ja), :lang(zh-CN), :lang(zh-TW)) .topbar-ai-label { display: none; }

@@ -224,8 +224,8 @@ describe('TopBar 버튼', () => {
     fireEvent.click(issues);
     expect(useUi.getState().panels.issues).toBe(true);
     expect(issues.className).toContain('is-active');
-    fireEvent.click(screen.getByTestId('legend-button'));
-    expect(useUi.getState().panels.legend).toBe(true);
+    // 표기법 안내는 상단 버튼이 아니라 도움말 창의 탭에 있다
+    expect(screen.queryByTestId('legend-button')).toBeNull();
     fireEvent.click(screen.getByTestId('help-button'));
     expect(useUi.getState().panels.help).toBe(true);
     expect(screen.getByTestId('avatars')).toBeTruthy();

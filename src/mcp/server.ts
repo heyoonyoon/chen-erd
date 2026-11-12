@@ -82,5 +82,19 @@ export function buildMcpServer(backend: DiagramBackend, hooks: ToolHooks = {}): 
     () => tools.syntax(),
   );
 
+  server.registerTool(
+    TOOL_NAMES.sql,
+    {
+      title: 'Relational model to SQL',
+      description: DESCRIPTIONS.sql,
+      inputSchema: z.object({
+        room: z.string().describe(ARGUMENTS.room),
+        dialect: z.enum(['postgresql', 'mysql', 'oracle']).optional().describe(ARGUMENTS.dialect),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    (args) => tools.sql(args),
+  );
+
   return server;
 }

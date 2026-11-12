@@ -16,7 +16,18 @@ export interface NodeShapeProps {
   editing?: boolean;
   /** 검증 패널 등에서 강조 */
   highlighted?: boolean;
+  /** 다른 pane이 가리킨 도형. 부드러운 호박색 후광 */
+  related?: boolean;
+  /** 다른 pane의 강조가 걸려 있고 이 도형은 그 대상이 아니다. 옅게 그린다 */
+  dimmed?: boolean;
 }
+
+/** 다른 pane이 가리킨 도형의 후광 색(검증 강조와 같은 계열의 호박색) */
+export const RELATED_COLOR = '#f59e0b';
+/** 강조 고리를 도형 테두리에서 띄우는 간격(월드 단위) */
+const RELATED_RING_GAP = 4;
+/** 강조가 걸렸을 때 대상이 아닌 도형의 불투명도 */
+export const DIMMED_OPACITY = 0.42;
 
 const HIGHLIGHT_COLOR = '#f59e0b';
 const DERIVED_DASH = '6 4';
@@ -35,15 +46,16 @@ function round(value: number): number {
  * 노드 종류에 맞는 외곽선 하나를 그린다.
  * inner가 true면 이중 도형의 안쪽 도형(변 사이 간격이 doubleGap)을 그리고, 도형이 너무 작아 그릴 수 없으면 null.
  */
-function outline(node: ErdNode, attrs: ShapeAttrs, inner = false): ReactNode {
+function outline(node: ErdNode, attrs: ShapeAttrs, inner = false, expand = 0): ReactNode {
   const { x, y, w, h } = node;
   const cx = x + w / 2;
   const cy = y + h / 2;
-  const gap = inner ? STYLE.doubleGap : 0;
+  // expand가 양수면 변을 그만큼 바깥으로 민 모양(강조 고리용)
+  const gap = inner ? STYLE.doubleGap : -expand;
 
   switch (node.kind) {
     case 'relationship': {
-      const k = inner ? innerDiamondScale(w, h, gap) : 1;
+      const k = inner ? innerDiamondScale(w, h, gap) : diamondGrow(w, h, expand);
       if (k <= 0) return null;
       const a = (w / 2) * k;
       const b = (h / 2) * k;
@@ -67,6 +79,14 @@ function outline(node: ErdNode, attrs: ShapeAttrs, inner = false): ReactNode {
       return <rect x={x + gap} y={y + gap} width={w - gap * 2} height={h - gap * 2} {...attrs} />;
     }
   }
+}
+
+/** 마름모의 변을 바깥으로 d만큼 밀었을 때의 배율. 가운데에서 변까지의 거리는 ab/√(a²+b²) */
+function diamondGrow(w: number, h: number, d: number): number {
+  const a = w / 2;
+  const b = h / 2;
+  if (d === 0 || a <= 0 || b <= 0) return 1;
+  return 1 + (d * Math.hypot(a, b)) / (a * b);
 }
 
 function isDouble(node: ErdNode): boolean {
@@ -155,7 +175,20 @@ function specLetter(node: ErdNode): ReactNode {
   );
 }
 
-function NodeShapeImpl({ node, selected = false, hovered = false, editing = false, highlighted = false }: NodeShapeProps) {
+/**
+ * 다른 pane이 가리킨 도형의 후광. 넓고 옅은 띠와 바깥 쪽 가는 선 두 겹이다.
+ * 띠의 안쪽 반은 도형 면에 가려져 바깥으로만 번져 보인다. 클릭을 가로채지 않는다.
+ */
+function relatedHalo(node: ErdNode): ReactNode {
+  return (
+    <g pointerEvents="none" data-related-halo="">
+      {outline(node, { fill: 'none', stroke: RELATED_COLOR, strokeOpacity: 0.28, strokeWidth: 18, strokeLinejoin: 'round' })}
+      {outline(node, { fill: 'none', stroke: RELATED_COLOR, strokeOpacity: 0.9, strokeWidth: 1.75, strokeLinejoin: 'round' }, false, RELATED_RING_GAP)}
+    </g>
+  );
+}
+
+function NodeShapeImpl({ node, selected = false, hovered = false, editing = false, highlighted = false, related = false, dimmed = false }: NodeShapeProps) {
   const halo = highlighted
     ? outline(node, {
         fill: 'none',
@@ -166,12 +199,16 @@ function NodeShapeImpl({ node, selected = false, hovered = false, editing = fals
         pointerEvents: 'none',
       })
     : null;
+  const relatedMark = related ? relatedHalo(node) : null;
+  // 강조 대상은 옅게 하지 않는다
+  const opacity = dimmed && !related ? DIMMED_OPACITY : undefined;
 
   if (node.kind === 'note') {
     // 메모는 테두리가 없다. 클릭 판정용 투명 사각형을 깔고 선택/호버 때만 옅은 점선 테두리를 보인다.
     const showBorder = selected || hovered;
     return (
-      <g data-node-id={node.id} data-node-kind={node.kind}>
+      <g data-node-id={node.id} data-node-kind={node.kind} data-related={related || undefined} opacity={opacity}>
+        {relatedMark}
         {halo}
         <rect
           x={node.x}
@@ -197,7 +234,8 @@ function NodeShapeImpl({ node, selected = false, hovered = false, editing = fals
   const dash = node.kind === 'attribute' && node.derived ? DERIVED_DASH : undefined;
 
   return (
-    <g data-node-id={node.id} data-node-kind={node.kind}>
+    <g data-node-id={node.id} data-node-kind={node.kind} data-related={related || undefined} opacity={opacity}>
+      {relatedMark}
       {halo}
       {hovered && !selected
         ? outline(node, {

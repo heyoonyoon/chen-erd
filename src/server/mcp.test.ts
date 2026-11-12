@@ -157,7 +157,7 @@ describe('MCP 엔드포인트', () => {
       expect(client.getInstructions()).toContain('read_diagram');
 
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax']);
+      expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql']);
       const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
       expect(byName.read_diagram.annotations?.readOnlyHint).toBe(true);
       expect(byName.update_diagram.annotations?.destructiveHint).toBe(true);
@@ -205,6 +205,22 @@ describe('MCP 엔드포인트', () => {
       const viaApi = await fetch(`${origin}/api/rooms/${roomId}/model`);
       expect(viaApi.status).toBe(200);
       expect(parseModel(await viaApi.text()).entities.map((e) => e.name).sort()).toEqual(['교수', '학생']);
+
+      // 관계 모델 글이 없으면 다이어그램에서 만들지 않고 그렇다고 알린다
+      const none = await call(client, 'diagram_to_sql', { room: url });
+      expect(none.isError).toBe(true);
+      expect(none.text).toContain('has no relational model yet');
+
+      // 사람이 적은 관계 모델 글을 SQL로 옮긴다(읽기만 한다)
+      const put = await fetch(`${origin}/api/rooms/${roomId}/relational`, { method: 'PUT', body: '교수(_사번_)\n학생(_학번_, 이름, 사번)\nForeign Key (사번) references 교수 (사번)\n' });
+      expect(put.status).toBe(200);
+      const sql = await call(client, 'diagram_to_sql', { room: url, dialect: 'oracle' });
+      expect(sql.isError).toBe(false);
+      expect(sql.text).toContain('학생(_학번_, 이름, 사번)\nForeign Key (사번) references 교수 (사번)');
+      expect(sql.text).toContain('FOREIGN KEY ("사번") REFERENCES "교수" ("사번")');
+      expect(sql.text).toContain('-- 수강신청 (Oracle)');
+      expect(sql.text).toContain('"이름" /* 타입 미지정 */');
+      expect((await call(client, 'diagram_to_sql', { room: 'nobody1234' })).isError).toBe(true);
     });
 
     it('문법 오류는 줄:칸: 메시지가 담긴 실패 결과이고 방을 만들지 않는다', async () => {

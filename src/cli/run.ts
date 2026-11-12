@@ -3,7 +3,7 @@
  */
 import { version } from '../../package.json';
 import { parseCliArgs } from './args';
-import { runNew, runPull, runPush, runSyntax, runValidate, type CliIo } from './commands';
+import { runNew, runPull, runPush, runRelational, runSql, runSyntax, runValidate, type CliIo } from './commands';
 import { CliError } from './errors';
 import { HELP_TEXT } from './help';
 
@@ -29,6 +29,10 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
         return await runValidate(io, args, options);
       case 'syntax':
         return runSyntax(io);
+      case 'relational':
+        return await runRelational(io, args, options);
+      case 'sql':
+        return await runSql(io, args, options);
     }
   } catch (err) {
     if (err instanceof CliError) {

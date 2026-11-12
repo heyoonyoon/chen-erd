@@ -3,13 +3,14 @@
  * 각 함수는 종료 코드를 돌려주고, 사용자에게 한 줄로 알릴 실패는 CliError로 던진다.
  */
 import { applyModel, parseModel, printModel } from '../shared/model';
+import { parseMarkup } from '../shared/relational/text';
 import type { Model } from '../shared/model/types';
 import { validateDiagram } from '../shared/rules';
 import type { Issue } from '../shared/types';
-import { fetchModel, sendModel, type FetchLike, type PushResult } from './api';
-import type { CliOptions } from './args';
+import { fetchModel, fetchRelational, sendModel, sendRelational, type FetchLike, type PushResult } from './api';
+import { COMMANDS, type CliOptions } from './args';
 import { CliError } from './errors';
-import { formatSummary, formatSyntaxError, issueText, pickLang, reportLines, type Lang } from './format';
+import { formatSummary, formatSyntaxError, issueText, pickLang, problemText, reportLines, type Lang } from './format';
 import { newRoomId, parseRoomRef, resolveServer, roomUrl, type RoomRef } from './room';
 import { SYNTAX_TEXT } from './syntax';
 
@@ -127,6 +128,57 @@ export async function runValidate(io: CliIo, args: string[], options: CliOptions
     if (lines.length === 0) io.out('no issues');
   }
   return failed ? 1 : 0;
+}
+
+/**
+ * 방에 사람들이 적은 관계 모델 글을 낸다. 다이어그램에서 만들어 내지 않으므로 아직 아무도 적지 않았으면 그렇다고 알린다.
+ * 'relational push <room> <file|->' 는 파일의 글로 방의 관계 모델 글을 바꾼다.
+ * 주고받는 글은 일반 텍스트 교환 표기다: 밑줄(기본키)은 _이름_ 으로 적는다(서버가 toMarkup, fromMarkup으로 바꾼다).
+ */
+export async function runRelational(io: CliIo, args: string[], options: CliOptions): Promise<number> {
+  if (args.length === 3 && args[0] === 'push') return runRelationalPush(io, args[1], args[2], options);
+  if (args.length !== 1) throw new CliError(`usage: ${COMMANDS.relational.usage}`, 2);
+  const ref = parseRoomRef(args[0], resolveServer(options.server, io.env));
+  const { text } = await fetchRelational(io.fetch, ref, 'relational');
+  const body = text.replace(/\n+$/, '');
+  if (body.trim() === '') {
+    io.err(`${roomUrl(ref)} has no relational model yet (people write it in the app, or use "modelll relational push")`);
+    return 0;
+  }
+  io.out(body);
+  return 0;
+}
+
+async function runRelationalPush(io: CliIo, room: string, file: string, options: CliOptions): Promise<number> {
+  const ref = parseRoomRef(room, resolveServer(options.server, io.env));
+  const text = (await io.readText(file)).replace(/^\uFEFF/, '');
+  // 틀린 글은 보내기 전에 모두 알린다(서버도 같은 검사를 한다). _이름_ 은 밑줄이고, 위치는 파일 기준이다
+  const lang = pickLang(options.lang, io.env);
+  const { problems } = parseMarkup(text.replace(/\r\n?/g, '\n'));
+  const lines = problems.map((p) => `${formatSyntaxError(file, { line: p.line, column: p.column, message: `${p.severity}: ${problemText(p, lang)}` })}`);
+  if (problems.some((p) => p.severity === 'error')) {
+    for (const line of lines) io.err(line);
+    if (options.json) printJson(io, { ok: false, error: 'syntax', problems: problems.map((p) => ({ severity: p.severity, line: p.line, column: p.column, message: problemText(p, lang) })) });
+    return 1;
+  }
+  const result = await sendRelational(io.fetch, ref, text, file);
+  if (options.json) {
+    printJson(io, { ...result, url: roomUrl(ref) });
+    return 0;
+  }
+  io.out(`${result.changed ? 'Updated the relational model of' : 'No changes to the relational model of'} ${roomUrl(ref)} (${result.tables} table${result.tables === 1 ? '' : 's'})`);
+  for (const line of lines) io.out(line);
+  return 0;
+}
+
+/** 방의 관계 모델 글과 컬럼 설정으로 만든 CREATE TABLE 문을 낸다. 타입을 정하지 않은 컬럼이나 글의 오류가 있으면 표준 오류로도 알린다 */
+export async function runSql(io: CliIo, args: string[], options: CliOptions): Promise<number> {
+  const ref = parseRoomRef(args[0], resolveServer(options.server, io.env));
+  const { text, missingTypes, errors } = await fetchRelational(io.fetch, ref, 'sql', options.dialect);
+  io.out(text.replace(/\n+$/, ''));
+  if (errors > 0) io.err(`warning: the relational model has ${errors} error${errors === 1 ? '' : 's'}; only the parts that could be read were converted`);
+  if (missingTypes > 0) io.err(`warning: ${missingTypes} column${missingTypes === 1 ? ' has' : 's have'} no type; set the types in the app (the SQL marks them and will not run as is)`);
+  return 0;
 }
 
 export function runSyntax(io: CliIo): number {

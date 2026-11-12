@@ -773,13 +773,13 @@ function ShareButton() {
 
 // ───────────── 상단 바 ─────────────
 
-export function TopBar() {
+/** paneMenu: 방 화면이 넘기는 패널 메뉴(pane 열기와 닫기). 오른쪽 묶음 맨 앞에 놓는다 */
+export function TopBar({ paneMenu }: { paneMenu?: ReactNode } = {}) {
   const t = useT();
   const room = useRoom();
   const { canUndo, canRedo } = useUndoState();
   const { errors, warnings } = useIssueCount();
   const issuesOpen = useUi((s) => s.panels.issues);
-  const legendOpen = useUi((s) => s.panels.legend);
   const helpOpen = useUi((s) => s.panels.help);
   const togglePanel = useUi((s) => s.togglePanel);
 
@@ -835,6 +835,12 @@ export function TopBar() {
       </div>
 
       <div className="topbar-group topbar-right">
+        {paneMenu && (
+          <>
+            {paneMenu}
+            <span className="topbar-divider topbar-panes-divider" aria-hidden="true" />
+          </>
+        )}
         <button
           type="button"
           className={`btn btn-ghost topbar-btn${issuesOpen ? ' is-active' : ''}`}
@@ -859,17 +865,6 @@ export function TopBar() {
               {warnings > 99 ? '99+' : warnings}
             </span>
           )}
-        </button>
-        <button
-          type="button"
-          className={`btn btn-ghost topbar-btn${legendOpen ? ' is-active' : ''}`}
-          data-testid="legend-button"
-          title={t('topbar.legendTitle')}
-          aria-pressed={legendOpen}
-          onClick={() => togglePanel('legend')}
-        >
-          {icons.legend}
-          <span className="topbar-label">{t('topbar.legend')}</span>
         </button>
         <ExportMenu />
         <AiButton />

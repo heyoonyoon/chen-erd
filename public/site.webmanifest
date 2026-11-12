@@ -1,7 +1,7 @@
 {
   "name": "modelll",
   "short_name": "modelll",
-  "description": "Collaborative ER diagram tool for Chen notation",
+  "description": "Database design from ER diagram to SQL",
   "start_url": "/",
   "scope": "/",
   "display": "browser",

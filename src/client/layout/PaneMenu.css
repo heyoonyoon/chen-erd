@@ -1,0 +1,17 @@
+/* 패널 메뉴: 상단 바나 보기 줄에 놓는 작은 단추와 펼침 목록 */
+.panemenu { position: relative; flex: none; display: flex; }
+.panemenu-button { height: 30px; gap: 6px; padding: 0 8px; }
+.panemenu-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.panemenu-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: max-content; min-width: 200px; max-width: calc(100vw - 16px); padding: 6px; box-shadow: var(--shadow-lg); }
+.panemenu-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px 0 6px; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; white-space: nowrap; cursor: pointer; }
+.panemenu-item:hover:not(:disabled), .panemenu-item:focus-visible { background: var(--bg-hover); outline: none; }
+.panemenu-item:disabled { opacity: 0.45; cursor: default; }
+.panemenu-check { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; color: var(--accent); }
+.panemenu-icon { flex: none; display: inline-flex; color: var(--text-dim); }
+.panemenu-icon > svg { width: 16px; height: 16px; }
+.panemenu-text { flex: 1 1 auto; }
+.panemenu-sep { height: 1px; margin: 6px 4px; background: var(--border); }
+
+@media (max-width: 640px) {
+  .panemenu-label { display: none; }
+}

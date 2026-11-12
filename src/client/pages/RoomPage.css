@@ -1,16 +1,13 @@
 .room { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg-canvas); }
 .room-top { flex: 0 0 var(--topbar-h); height: var(--topbar-h); background: var(--bg-panel); border-bottom: 1px solid var(--border); z-index: 30; }
-.room-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-/* 패널이 놓이는 자리. slot 자체는 클릭을 통과시키고 안의 패널만 클릭을 받는다. */
-.slot { position: absolute; z-index: 20; pointer-events: none; display: flex; gap: var(--gap); }
-.slot > * { pointer-events: auto; }
-.slot-left { left: 12px; top: 12px; bottom: 12px; flex-direction: column; justify-content: flex-start; }
-.slot-right { right: 12px; top: 12px; bottom: 12px; flex-direction: column; align-items: flex-end; overflow: hidden; }
-.slot-right > * { max-height: 100%; }
-.slot-bottom-left { left: 84px; bottom: 12px; align-items: flex-end; }
-.slot-bottom-right { right: 12px; bottom: 12px; align-items: flex-end; }
-/* 미니맵이 켜져 있으면 오른쪽 패널이 미니맵을 덮지 않게 아래를 비운다 */
-.room-body[data-minimap='on'] .slot-right { bottom: 176px; }
+/* 상단 바 아래 남는 자리 전부. pane 배치(DockLayout)가 꽉 채운다 */
+.room-body { position: relative; flex: 1 1 auto; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+
+/* 관계 모델 쪽 pane의 틀. 놓인 pane 칸을 꽉 채우고, 안을 누르면 포커스를 받는다(캔버스 단축키가 듣지 않게) */
+.room-pane { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
+.room-pane > * { flex: 1 1 auto; min-height: 0; }
+/* pane 본문을 내려받는 동안 보이는 빈 자리 */
+.room-pane-loading { background: var(--bg-canvas); }
 
 /* 접속 제한 안내 */
 .room-blocked-overlay { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(17, 24, 39, 0.4); }

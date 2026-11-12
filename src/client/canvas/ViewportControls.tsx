@@ -9,6 +9,7 @@ import { MAX_ZOOM, MIN_ZOOM } from '../../shared/types';
 import type { ErdEdge, ErdNode, Point, Rect, Viewport } from '../../shared/types';
 import { useEdges, useNodes } from '../collab/hooks';
 import { useT } from '../i18n';
+import { useErdHighlight } from '../state/highlight';
 import { ui, useUi } from '../state/ui';
 import { clientToScreen, screenToWorld, visibleWorldRect } from './coords';
 import {
@@ -337,46 +338,57 @@ const MINIMAP_W = 200;
 const MINIMAP_H = 140;
 const MINIMAP_PADDING = 8;
 
-const MiniNode = memo(function MiniNode({ node }: { node: ErdNode }) {
+/** 다른 pane의 강조에 따른 미니맵 도형 상태 */
+type MiniMark = 'related' | 'dimmed' | null;
+
+const MiniNode = memo(function MiniNode({ node, mark }: { node: ErdNode; mark: MiniMark }) {
   const { x, y, w, h } = node;
+  const cls = `minimap-node${node.kind === 'note' ? ' minimap-node-note' : ''}${mark ? ` is-${mark}` : ''}`;
   switch (node.kind) {
     case 'relationship':
-      return (
-        <polygon
-          className="minimap-node"
-          points={`${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`}
-        />
-      );
+      return <polygon className={cls} points={`${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`} />;
     case 'attribute':
-      return <ellipse className="minimap-node" cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} />;
+      return <ellipse className={cls} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} />;
     case 'spec':
-      return <circle className="minimap-node" cx={x + w / 2} cy={y + h / 2} r={Math.min(w, h) / 2} />;
-    case 'note':
-      return <rect className="minimap-node minimap-node-note" x={x} y={y} width={w} height={h} />;
+      return <circle className={cls} cx={x + w / 2} cy={y + h / 2} r={Math.min(w, h) / 2} />;
     default:
-      return <rect className="minimap-node" x={x} y={y} width={w} height={h} />;
+      return <rect className={cls} x={x} y={y} width={w} height={h} />;
   }
 });
 
 /** 월드 좌표로 그린 미니맵 내용. 화면을 밀 때는 바깥 <g>의 transform만 바뀌고 이 부분은 다시 그려지지 않는다. */
-const MinimapContent = memo(function MinimapContent({ nodes, edges }: { nodes: ErdNode[]; edges: ErdEdge[] }) {
+const MinimapContent = memo(function MinimapContent({
+  nodes,
+  edges,
+  related,
+}: {
+  nodes: ErdNode[];
+  edges: ErdEdge[];
+  /** 다른 pane이 강조한 id. 비어 있으면 강조 없음 */
+  related: ReadonlySet<string>;
+}) {
+  const active = related.size > 0;
   const lines = useMemo(() => {
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    let d = '';
+    let plain = '';
+    let marked = '';
     for (const e of edges) {
       const a = byId.get(e.source);
       const b = byId.get(e.target);
       if (!a || !b) continue;
-      d += `M${a.x + a.w / 2} ${a.y + a.h / 2}L${b.x + b.w / 2} ${b.y + b.h / 2}`;
+      const d = `M${a.x + a.w / 2} ${a.y + a.h / 2}L${b.x + b.w / 2} ${b.y + b.h / 2}`;
+      if (related.has(e.id)) marked += d;
+      else plain += d;
     }
-    return d;
-  }, [nodes, edges]);
+    return { plain, marked };
+  }, [nodes, edges, related]);
 
   return (
     <>
-      {lines && <path className="minimap-edge" d={lines} />}
+      {lines.plain && <path className={`minimap-edge${active ? ' is-dimmed' : ''}`} d={lines.plain} />}
+      {lines.marked && <path className="minimap-edge is-related" d={lines.marked} />}
       {nodes.map((n) => (
-        <MiniNode key={n.id} node={n} />
+        <MiniNode key={n.id} node={n} mark={related.has(n.id) ? 'related' : active ? 'dimmed' : null} />
       ))}
     </>
   );
@@ -389,6 +401,8 @@ export function Minimap() {
   const edges = useEdges();
   const viewport = useUi((s) => s.viewport);
   const canvasSize = useUi((s) => s.canvasSize);
+  const relatedIds = useErdHighlight((s) => s.ids);
+  const related = useMemo(() => new Set(relatedIds), [relatedIds]);
   // 끄는 동안에는 축척을 고정한다(화면이 움직이면서 범위가 바뀌면 마우스 아래 위치가 달라지기 때문)
   const [frozen, setFrozen] = useState<Viewport | null>(null);
   const frozenRef = useRef<Viewport | null>(null);
@@ -439,7 +453,7 @@ export function Minimap() {
         onLostPointerCapture={endDrag}
       >
         <g transform={`translate(${layout.x} ${layout.y}) scale(${layout.zoom})`}>
-          <MinimapContent nodes={nodes} edges={edges} />
+          <MinimapContent nodes={nodes} edges={edges} related={related} />
         </g>
         <rect
           className="minimap-view"

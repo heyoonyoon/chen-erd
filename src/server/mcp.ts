@@ -21,6 +21,8 @@ import { ToolError, resolveRoom, type DiagramBackend, type WriteResult } from '.
 import { buildMcpServer } from '../mcp/server';
 import { diagramToText, parseModel } from '../shared/model';
 import type { Model } from '../shared/model/types';
+import { toMarkup } from '../shared/relational/markup';
+import { readColumnSettings, readRelationalSource, readRoomDialect } from '../shared/relational/ydoc';
 import { getEdges, getNodes, getTitle } from '../shared/ydoc';
 import { clientIp, isPrivateAddress } from './limits';
 import { MAX_MODEL_BYTES, MAX_NODES, modelNodeCount, writeModel, type WithDoc } from './model';
@@ -165,6 +167,18 @@ function hubBackend(deps: McpDeps, call: McpCall): DiagramBackend {
       attempt(async () => {
         const model = parse(text);
         return write(await existing(room), model, { relayout, created: false });
+      }),
+
+    relational: (room) =>
+      attempt(async () => {
+        const roomId = await existing(room);
+        const snapshot = await deps.withDoc(roomId, (doc) => ({
+          title: getTitle(doc),
+          text: toMarkup(readRelationalSource(doc)),
+          settings: readColumnSettings(doc),
+          dialect: readRoomDialect(doc),
+        }));
+        return { url: `${call.origin}/r/${roomId}`, ...snapshot };
       }),
   };
 }

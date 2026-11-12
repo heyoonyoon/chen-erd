@@ -67,6 +67,55 @@ async function failure(res: Response, ref: RoomRef, file?: string): Promise<CliE
   );
 }
 
+/** 방에 적힌 관계 모델 글(relational) 또는 그 글과 컬럼 설정으로 만든 CREATE TABLE 문(sql)을 받는다 */
+export async function fetchRelational(
+  fetchImpl: FetchLike,
+  ref: RoomRef,
+  kind: 'relational' | 'sql',
+  dialect?: string,
+): Promise<{ text: string; missingTypes: number; errors: number }> {
+  const query = kind === 'sql' && dialect ? `?dialect=${encodeURIComponent(dialect)}` : '';
+  const url = `${ref.server}/api/rooms/${encodeURIComponent(ref.roomId)}/${kind}${query}`;
+  const res = await request(fetchImpl, ref, url, { method: 'GET' });
+  if (!res.ok) throw await failure(res, ref);
+  const count = (name: string) => {
+    const n = Number(res.headers.get(name) ?? 0);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  return { text: await res.text(), missingTypes: count('x-missing-types'), errors: count('x-relational-errors') };
+}
+
+/** 관계 모델 글의 문제 하나(서버가 영어 문장으로 준다) */
+export interface RelationalProblem {
+  severity: 'error' | 'warning';
+  line: number;
+  column: number;
+  message: string;
+}
+
+/** PUT /api/rooms/:id/relational 의 성공 응답 */
+export interface RelationalPushResult {
+  ok: true;
+  room: string;
+  /** 방의 글이 바뀌었는지(같은 글이면 false) */
+  changed: boolean;
+  tables: number;
+  /** 경고(기본키가 없는 테이블 등). 오류가 있으면 서버가 받지 않는다 */
+  problems: RelationalProblem[];
+}
+
+/** 관계 모델 글을 보내 방의 글을 바꾼다. 없는 방이면 실패한다 */
+export async function sendRelational(fetchImpl: FetchLike, ref: RoomRef, text: string, file?: string): Promise<RelationalPushResult> {
+  const url = `${ref.server}/api/rooms/${encodeURIComponent(ref.roomId)}/relational`;
+  const res = await request(fetchImpl, ref, url, { method: 'PUT', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: text });
+  if (!res.ok) throw await failure(res, ref, file);
+  try {
+    return (await res.json()) as RelationalPushResult;
+  } catch {
+    throw new CliError(`${ref.server} sent a reply that is not JSON`);
+  }
+}
+
 /** 방의 내용을 모델 텍스트로 받는다 */
 export async function fetchModel(fetchImpl: FetchLike, ref: RoomRef): Promise<string> {
   const res = await request(fetchImpl, ref, apiUrl(ref), { method: 'GET' });

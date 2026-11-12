@@ -5,8 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 화면이 뜨면 제목은 언어와 화면에 맞게 바뀐다. 여기 적힌 값은 스크립트를 돌리지 않는 검색 로봇과 링크 미리보기가 읽는다 -->
-    <title>%APP_NAME% | Collaborative ER diagram tool for Chen notation</title>
-    <meta name="description" content="%APP_NAME% is a free online ER diagram tool for Chen notation. Draw on the same canvas with your team in real time, let an AI assistant draw with you, and export as PNG or SVG." />
+    <title>%APP_NAME% | Your team and AI, from ERD to SQL</title>
+    <meta name="description" content="%APP_NAME% is a free online tool for all three steps of database design: draw a Chen-notation ER diagram with your team, write the relational model with a live IE diagram, and generate SQL for MySQL, PostgreSQL, or Oracle." />
     <meta name="application-name" content="%APP_NAME%" />
     <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
     <meta name="theme-color" content="#ffffff" />
@@ -26,8 +26,8 @@
     <!-- 링크를 붙여 넣었을 때 보이는 미리보기 -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="%APP_NAME%" />
-    <meta property="og:title" content="%APP_NAME% | Collaborative ER diagram tool for Chen notation" />
-    <meta property="og:description" content="Free online ER diagram tool for Chen notation. Share a link and draw on the same canvas with your team in real time, with an AI assistant if you like." />
+    <meta property="og:title" content="%APP_NAME% | Your team and AI, from ERD to SQL" />
+    <meta property="og:description" content="Conceptual, logical, and physical database design in one place. Draw a Chen-notation ER diagram with your team, write the relational model, and generate SQL." />
     <meta property="og:url" content="https://modelll.app/" />
     <meta property="og:image" content="https://modelll.app/og.png" />
     <meta property="og:image:type" content="image/png" />
@@ -45,8 +45,8 @@
     <meta property="og:locale:alternate" content="pt_BR" />
     <meta property="og:locale:alternate" content="vi_VN" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="%APP_NAME% | Collaborative ER diagram tool for Chen notation" />
-    <meta name="twitter:description" content="Free online ER diagram tool for Chen notation. Share a link and draw on the same canvas with your team in real time, with an AI assistant if you like." />
+    <meta name="twitter:title" content="%APP_NAME% | Your team and AI, from ERD to SQL" />
+    <meta name="twitter:description" content="Conceptual, logical, and physical database design in one place. Draw a Chen-notation ER diagram with your team, write the relational model, and generate SQL." />
     <meta name="twitter:image" content="https://modelll.app/og.png" />
     <meta name="twitter:image:alt" content="%APP_NAME%: an ER diagram in Chen notation being drawn by two people at once" />
 
@@ -66,7 +66,7 @@
             "@type": "WebPage",
             "@id": "https://modelll.app/#webpage",
             "url": "https://modelll.app/",
-            "name": "%APP_NAME% | Collaborative ER diagram tool for Chen notation",
+            "name": "%APP_NAME% | Your team and AI, from ERD to SQL",
             "isPartOf": { "@id": "https://modelll.app/#website" },
             "about": { "@id": "https://modelll.app/#app" },
             "primaryImageOfPage": {
@@ -81,12 +81,15 @@
             "@id": "https://modelll.app/#app",
             "name": "%APP_NAME%",
             "url": "https://modelll.app/",
-            "description": "A free, real-time collaborative ER diagram tool for Chen notation. Share a link and everyone draws on the same canvas with live cursors, notation checks, and PNG or SVG export. AI assistants can create and edit the same diagram as text.",
+            "description": "A free tool for the three steps of database design. Draw a Chen-notation ER diagram with your team in real time (conceptual), write the relational model and see it as an IE diagram (logical), and generate CREATE TABLE SQL for MySQL, PostgreSQL, or Oracle (physical). AI assistants can create and edit the same diagram as text.",
             "featureList": [
               "Real-time collaboration with shared cursors and selections, up to 15 people per room",
               "Chen notation shapes, including weak entities, identifying relationships, multivalued and composite attributes, and specialization",
               "Notation checks for missing keys, missing cardinalities, and weak entities without an identifying relationship",
               "AI assistants such as Claude and ChatGPT can create and edit diagrams as text through a command-line tool or an MCP server",
+              "Relational model written in plain text, with underlined primary keys and Foreign Key lines, drawn live as an IE (crow's foot) diagram",
+              "CREATE TABLE SQL for MySQL, PostgreSQL, and Oracle from the types, NOT NULL, and UNIQUE you set, without guessing unset types",
+              "Resizable side by side views for the ER diagram, relational model, IE diagram, and SQL",
               "Export to PNG, SVG, the clipboard, and JSON",
               "No sign-up, and the interface is available in 10 languages"
             ],
@@ -108,11 +111,12 @@
     <!-- 스크립트를 돌리지 않는 곳에서만 보이는 글. 스크립트가 켜져 있으면 그려지지 않으므로 화면이 뜨기 전에 비치지 않는다. #root가 화면 높이를 다 쓰므로 그 앞에 둔다 -->
     <noscript>
       <main style="max-width: 640px; margin: 18vh auto 0; padding: 0 24px; font-size: 16px; line-height: 1.6; color: #171717">
-        <h1 style="font-size: 28px; line-height: 1.25">%APP_NAME%: draw ER diagrams with your team</h1>
+        <h1 style="font-size: 28px; line-height: 1.25">%APP_NAME%: database design from ER diagram to SQL</h1>
         <p>
-          %APP_NAME% is a free online ER diagram tool for Chen notation. Share a link and your teammates join right away and draw on the same canvas,
-          with live cursors, notation checks, and PNG or SVG export. An AI assistant such as Claude or ChatGPT can also create and edit the
-          diagram as text while everyone watches the changes appear. Please turn on JavaScript to use it.
+          %APP_NAME% is a free online tool for the three steps of database design: conceptual, logical, and physical. Share a link and your teammates
+          join right away to draw a Chen-notation ER diagram on the same canvas, write the relational model with a live IE diagram, and generate SQL
+          for MySQL, PostgreSQL, or Oracle. An AI assistant such as Claude or ChatGPT can also create and edit the diagram as text while everyone
+          watches the changes appear. Please turn on JavaScript to use it.
         </p>
       </main>
     </noscript>

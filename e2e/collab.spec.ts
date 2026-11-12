@@ -78,7 +78,8 @@ test('두 사람이 같은 방에서 동시에 그리고 서로의 커서가 보
   await expect(b.page.locator('[data-edge-id]')).toHaveCount(1);
 
   // 철수가 마우스를 움직이면 영희 화면에 철수의 포인터가 보인다
-  const p = await at(a.page, 550, 450);
+  // (영희 쪽은 방금 놓은 관계를 고른 채라 오른쪽에 속성 패널이 떠 있다. 그 패널에 가리지 않는 자리로 옮긴다)
+  const p = await at(a.page, 450, 450);
   await a.page.mouse.move(p.x, p.y, { steps: 3 });
   // 포인터를 감싼 요소는 크기가 0이라 안쪽의 이름표로 보이는지 확인한다
   const cursor = b.page.locator('[data-testid="remote-cursor"][data-user-name="철수"]');

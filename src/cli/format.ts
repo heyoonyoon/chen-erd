@@ -5,6 +5,7 @@ import { capitalizeFirst, formatMessage } from '../client/i18n/format';
 import { en } from '../client/i18n/locales/en';
 import { ko } from '../client/i18n/locales/ko';
 import { APP_NAME } from '../shared/app';
+import type { RelProblem } from '../shared/relational/userSchema';
 import type { Issue } from '../shared/types';
 
 export type Lang = 'ko' | 'en';
@@ -26,6 +27,16 @@ export function issueText(issue: Issue, lang: Lang): string {
 /** 'error: …' 또는 'warning: …' 한 줄 */
 export function issueLine(issue: Issue, lang: Lang): string {
   return `${issue.severity}: ${issueText(issue, lang)}`;
+}
+
+/** 관계 모델 글의 문제 하나를 그 언어의 문장으로 바꾼다 */
+export function problemText(problem: RelProblem, lang: Lang): string {
+  return capitalizeFirst(formatMessage(DICTIONARIES[lang], lang, problem.message.key, { app: APP_NAME, ...problem.message.params }), lang);
+}
+
+/** 'error: 3:5: …' 또는 'warning: 1:1: …' 한 줄 */
+export function problemLine(problem: RelProblem, lang: Lang): string {
+  return `${problem.severity}: ${problem.line}:${problem.column}: ${problemText(problem, lang)}`;
 }
 
 export interface ChangeSummary {
@@ -83,6 +94,8 @@ export function httpErrorMessage(failure: HttpFailure): string {
       return 'the diagram would have more than 3000 shapes, which the server does not accept';
     case 'bad-request':
       return 'the server could not read the request body';
+    case 'bad-dialect':
+      return 'the server does not know that SQL dialect (use postgresql, mysql or oracle)';
     case 'unavailable':
       return 'the server is restarting or could not load this room; try again shortly';
     default:

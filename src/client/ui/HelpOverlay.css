@@ -26,3 +26,14 @@
 @media (max-width: 600px) {
   .helpoverlay-columns { grid-template-columns: 1fr; }
 }
+
+/* 단축키와 표기법 탭 */
+.helpoverlay-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.helpoverlay-tabs { display: flex; gap: 4px; }
+.helpoverlay-tab { height: 30px; padding: 0 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 600; cursor: pointer; }
+.helpoverlay-tab:hover { background: var(--bg-hover); color: var(--text); }
+.helpoverlay-tab.is-active { background: var(--bg-hover); color: var(--text); }
+.helpoverlay-body[hidden] { display: none; }
+.helpoverlay-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+.helpoverlay-legend .legend-foot { grid-column: 1 / -1; }
+@media (max-width: 640px) { .helpoverlay-legend { grid-template-columns: 1fr; } }

@@ -184,9 +184,36 @@ export const LEGEND_SECTIONS: LegendSection[] = [
   },
 ];
 
-export function Legend() {
+/** 표기법 안내의 본문(구역 목록과 끝맺음). 도움말 창의 표기법 탭도 이것을 쓴다 */
+export function LegendSections() {
   const t = useT();
   const locale = useLocale();
+  return (
+    <>
+      {LEGEND_SECTIONS.map((section) => (
+        <section key={section.id} className="legend-section">
+          <h3 className="legend-section-title">{t(section.title)}</h3>
+          <ul className="legend-list">
+            {section.rows.map((row) => (
+              <li key={row.key} className="legend-row">
+                <span className="legend-icon">{row.icon}</span>
+                <span className="legend-text">
+                  <span className="legend-name">{t(row.name)}</span>
+                  {locale !== 'en' && <span className="legend-en">{row.nameEn}</span>}
+                  <span className="legend-desc">{t(row.description)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      <p className="legend-foot">{t('legend.foot')}</p>
+    </>
+  );
+}
+
+export function Legend() {
+  const t = useT();
   return (
     <aside className="legend panel" data-testid="legend" aria-label={t('legend.title')}>
       <header className="legend-head">
@@ -203,24 +230,7 @@ export function Legend() {
         </button>
       </header>
       <div className="legend-body">
-        {LEGEND_SECTIONS.map((section) => (
-          <section key={section.id} className="legend-section">
-            <h3 className="legend-section-title">{t(section.title)}</h3>
-            <ul className="legend-list">
-              {section.rows.map((row) => (
-                <li key={row.key} className="legend-row">
-                  <span className="legend-icon">{row.icon}</span>
-                  <span className="legend-text">
-                    <span className="legend-name">{t(row.name)}</span>
-                    {locale !== 'en' && <span className="legend-en">{row.nameEn}</span>}
-                    <span className="legend-desc">{t(row.description)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-        <p className="legend-foot">{t('legend.foot')}</p>
+        <LegendSections />
       </div>
     </aside>
   );

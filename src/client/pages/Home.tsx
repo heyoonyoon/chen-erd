@@ -1,5 +1,6 @@
 /**
- * 첫 화면. 새 방 만들기, 코드로 들어가기, 최근 방 목록, 그 아래에 기능 설명(AI로 그리기, 주요 기능, 이용 안내, 지원하는 표기).
+ * 첫 화면. 새 방 만들기, 코드로 들어가기, 최근 방 목록, 그 아래에 기능 설명
+ * (이름의 l 세 개가 뜻하는 설계 세 단계, AI로 그리기, 이용 안내, 지원하는 표기).
  * 이름과 색은 여기서 정하지 않는다. 방에 처음 들어갈 때 묻고, 방 안에서 내 아바타를 눌러 바꾼다.
  */
 import { useEffect, useId, useRef, useState } from 'react';
@@ -13,9 +14,10 @@ import { LogoMark } from '../ui/LogoMark';
 import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
 import { HomeAi } from './HomeAi';
-import { HomeFeatures } from './HomeFeatures';
+import { HomeFacts } from './HomeFeatures';
 import { HomeNotation } from './HomeNotation';
 import { HomePreview } from './HomePreview';
+import { HomeStages } from './HomeStages';
 import { extractRoomId, relativeTime } from './homeUtils';
 import { Reveal } from './motion';
 import './Home.css';
@@ -138,11 +140,13 @@ export function Home() {
         <header className="home-hero">
           <div className="home-hero-inner">
             <div className="home-hero-copy">
-              {/* 줄을 나누는 자리는 언어마다 다르므로 두 줄을 따로 번역한다 */}
+              {/* 줄을 나누는 자리는 언어마다 다르므로 세 줄을 따로 번역한다 */}
               <h1 className="home-title">
                 {t('home.hero.title1')}
                 <br />
                 {t('home.hero.title2')}
+                <br />
+                {t('home.hero.title3')}
               </h1>
               <p className="home-lead">{t('home.hero.lead')}</p>
               <div className="home-actions">
@@ -236,7 +240,7 @@ export function Home() {
                     }}
                     onKeyDown={onJoinKeyDown}
                   />
-                  <button type="button" className="home-btn" data-testid="join-button" onClick={join}>
+                  <button type="button" className={joinValue.trim() ? 'home-btn is-ready' : 'home-btn'} data-testid="join-button" onClick={join}>
                     {t('home.join.submit')}
                   </button>
                 </div>
@@ -249,8 +253,9 @@ export function Home() {
             </Reveal>
           </div>
 
+          <HomeStages />
           <HomeAi />
-          <HomeFeatures />
+          <HomeFacts />
 
           <section className="home-notation" aria-labelledby={notationTitleId}>
             <Reveal>

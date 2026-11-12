@@ -2,7 +2,7 @@
  * 첫 화면의 AI 구역. AI에게 한 요청이 글로 쓴 모델을 거쳐 다이어그램이 되는 예시 그림과,
  * AI를 연결하는 두 가지 방법(CLI, MCP)을 복사할 수 있는 카드로 보여 준다. 어느 방법도 특정 AI 제품에 묶이지 않게 적는다.
  */
-import { useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { computeEdgeGeometry, diagramBounds, siblingInfo } from '../../shared/geometry';
 import type { ErdEdge, ErdNode } from '../../shared/types';
 import { copyText, remoteMcpUrl } from '../ai';
@@ -10,6 +10,7 @@ import { EdgeShape } from '../canvas/EdgeShape';
 import { NodeShape } from '../canvas/NodeShape';
 import { useT, type MessageKey, type TFunction } from '../i18n';
 import { toast } from '../ui/toast';
+import { runMatrixRain } from './matrixRain';
 import { Reveal, canAnimate, useInView } from './motion';
 
 /**
@@ -91,45 +92,111 @@ export function modelLines(t: TFunction): Segment[][] {
 
 const order = (i: number) => ({ '--i': i }) as CSSProperties;
 
+/**
+ * 화면에 보이는지 계속 따라간다(useInView와 달리 한 번 보인 뒤에도 끊지 않는다).
+ * 움직임을 쓸 수 없으면 처음부터 보이는 것으로 둔다
+ */
+function useLiveInView<T extends Element>(armed: boolean): [RefObject<T | null>, boolean] {
+  const ref = useRef<T | null>(null);
+  const [inView, setInView] = useState(!armed);
+  useEffect(() => {
+    const el = ref.current;
+    if (!armed || !el || typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => setInView(entries.some((e) => e.isIntersecting)), {
+      rootMargin: '0px 0px -12% 0px',
+      threshold: 0,
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [armed]);
+  return [ref, inView];
+}
+
 /** 요청, 글로 쓴 모델, 다이어그램을 왼쪽에서 오른쪽으로 놓은 그림. 화면에 들어오면 글이 적힌 순서대로 도형이 나타난다 */
 function AiFigure() {
   const t = useT();
   // 움직임을 쓸 수 있는지는 브라우저에서만 알 수 있으므로 처음 한 번만 정한다
   const [armed] = useState(canAnimate);
-  const [ref, inView] = useInView<HTMLElement>();
+  // 화면에 들어올 때마다 다시 재생한다: 완전히 벗어나면 처음 상태로 되돌린다
+  const [ref, inView] = useLiveInView<HTMLElement>(armed);
   const lines = modelLines(t);
   const nodes = AI_NODES.map((n) => ({ ...n, text: t(AI_TEXT[n.id]) }));
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
   const siblings = siblingInfo(AI_EDGES);
-  const names = ['home-ai-fig', armed ? 'is-armed' : '', armed && inView ? 'is-in' : ''].filter(Boolean).join(' ');
+  // 오른쪽 다이어그램은 다른 구역처럼 처음 보일 때 한 번만 그린다(터미널 글자 비만 보일 때마다 다시 돈다)
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    if (inView) setSeen(true);
+  }, [inView]);
+  const names = ['home-ai-fig', armed ? 'is-armed' : '', armed && (inView || seen) ? 'is-in' : ''].filter(Boolean).join(' ');
+  // 터미널 글은 화면에 들어오면 글자 비가 지나간 자리부터 드러난다. 그동안 DOM 글자는 색만 투명하게 가려 둔다
+  const [raining, setRaining] = useState(armed);
+  useEffect(() => {
+    if (armed && !inView) setRaining(true);
+  }, [armed, inView]);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const rainRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const body = bodyRef.current;
+    const canvas = rainRef.current;
+    if (!raining || !inView || !body || !canvas) return;
+    return runMatrixRain(body, canvas, () => setRaining(false));
+  }, [raining, inView]);
 
   return (
     <figure ref={ref} className={names} aria-label={t('home.ai.figureLabel')} data-testid="ai-figure">
-      <div className="home-ai-term">
+      <div className={raining ? 'home-ai-term is-coding' : 'home-ai-term'}>
         <div className="home-ai-term-bar" aria-hidden="true">
           <i />
           <i />
           <i />
           <span>{t('home.ai.assistant')}</span>
         </div>
-        <div className="home-ai-term-body">
+        <div ref={bodyRef} className="home-ai-term-body">
           <p className="home-ai-line home-ai-ask" style={order(0)}>
             <span aria-hidden="true">&gt;</span>
             <span>{t('home.ai.request')}</span>
           </p>
+          {/* AI 코딩 도구가 실제로 거치는 순서: 형식 읽기, 모델 파일 쓰기, CLI로 방 만들기 */}
+          <p className="home-ai-line home-ai-tool" style={order(1)}>
+            <span aria-hidden="true">●</span>
+            <span>
+              Bash(<code>npx -y modelll syntax</code>)
+            </span>
+          </p>
+          <p className="home-ai-line home-ai-out" style={order(2)}>
+            <span aria-hidden="true">⎿</span>
+            <span>entity, relationship, key, multi, total …</span>
+          </p>
+          <p className="home-ai-line home-ai-tool" style={order(3)}>
+            <span aria-hidden="true">●</span>
+            <span>
+              Write(<code>model.mdl</code>)
+            </span>
+          </p>
           <pre className="home-ai-model" data-testid="ai-model-text">
             {lines.map((segments, i) => (
-              <span key={i} className="home-ai-line" style={order(i + 1)}>
+              <span key={i} className="home-ai-line" style={order(i + 4)}>
                 {segments.map(([text, keyword], k) => (keyword ? <b key={k}>{text}</b> : text))}
                 {'\n'}
               </span>
             ))}
           </pre>
-          <p className="home-ai-line home-ai-run" style={order(lines.length + 1)}>
-            <span aria-hidden="true">$</span>
-            <span>npx -y modelll push {SAMPLE_ROOM} model.mdl</span>
+          <p className="home-ai-line home-ai-tool home-ai-run" style={order(lines.length + 4)}>
+            <span aria-hidden="true">●</span>
+            <span>
+              Bash(<code>npx -y modelll new model.mdl</code>)
+            </span>
           </p>
+          <p className="home-ai-line home-ai-out" style={order(lines.length + 5)}>
+            <span aria-hidden="true">⎿</span>
+            <span className="home-ai-url">https://modelll.app/r/{SAMPLE_ROOM}</span>
+          </p>
+          {raining && <canvas ref={rainRef} className="home-ai-rain" aria-hidden="true" />}
         </div>
       </div>
 

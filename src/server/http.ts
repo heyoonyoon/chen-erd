@@ -5,6 +5,14 @@
  *   GET /api/rooms/:id/model      방의 내용을 모델 텍스트로 준다(text/plain)
  *   GET /api/rooms/:id/diagram    방의 도형과 선을 JSON으로 준다
  *   PUT /api/rooms/:id/model      모델 텍스트를 받아 방을 그 내용으로 맞춘다. 없는 방이면 만든다. ?relayout=1 이면 전체를 다시 배치한다
+ *   GET /api/rooms/:id/relational 방에서 사람들이 적은 관계 모델 글(text/plain). 아직 없으면 빈 글
+ *                                 밑줄(기본키)은 일반 텍스트 교환 표기 _이름_ 으로 바꿔 준다(toMarkup)
+ *   PUT /api/rooms/:id/relational 관계 모델 글(_이름_ 표기)을 받아 방의 글과 밑줄을 바꾼다(fromMarkup → setRelationalSource).
+ *                                 있는 방만 된다. 문법이나 내용 오류가 있으면 쓰지 않는다(400 syntax, 위치는 받은 글 기준)
+ *   GET /api/rooms/:id/sql        관계 모델 글과 컬럼 설정에서 만든 CREATE TABLE 문(text/plain). ?dialect=postgresql | mysql | oracle (없으면 방에서 고른 DBMS, 그것도 없으면 postgresql)
+ *                                 ERD에서 아무것도 추측하지 않는다. 타입을 정하지 않은 컬럼은 SQL에 '/* 타입 미지정 *\/' 자리 표시로 들어가고,
+ *                                 그 목록은 SQL 머리 주석으로 적고 개수는 X-Missing-Types 헤더로 준다.
+ *                                 글에 오류가 있으면 읽은 부분만 옮기고, 그 사실을 머리 주석에, 오류 개수를 X-Relational-Errors 헤더에 적는다
  *
  * MCP(AI 도구가 쓴다. src/server/mcp.ts)
  *   POST /mcp                     Streamable HTTP. 세션과 인증이 없다
@@ -14,6 +22,11 @@ import express, { type Express, type Request, type RequestHandler } from 'expres
 import { diagramToText, parseModel } from '../shared/model';
 import type { Model } from '../shared/model/types';
 import { ROOM_ID_PATTERN } from '../shared/types';
+import { fromMarkup, parseMarkup, parseRelational, toMarkup, toSql } from '../shared/relational';
+import { isSqlDialect } from '../shared/relational/sql';
+import { readColumnSettings, readRelationalSource, readRoomDialect, setRelationalSource } from '../shared/relational/ydoc';
+import { problemText } from '../cli/format';
+import type { RelProblem } from '../shared/relational/userSchema';
 import { getEdges, getNodes, getTitle } from '../shared/ydoc';
 import { clientIp } from './limits';
 import { mountMcp, type McpDeps } from './mcp';
@@ -63,6 +76,11 @@ function modelTextOf(req: Request): string | null {
   } catch {
     return null;
   }
+}
+
+/** 관계 모델 글의 문제 하나를 응답용으로. 문장은 영어다 */
+function problemJson(p: RelProblem): { severity: RelProblem['severity']; line: number; column: number; message: string } {
+  return { severity: p.severity, line: p.line, column: p.column, message: problemText(p, 'en') };
 }
 
 export function createApp(deps: HttpDeps): Express {
@@ -142,6 +160,78 @@ export function createApp(deps: HttpDeps): Express {
       return;
     }
     res.json(await deps.withDoc(id, (doc) => ({ title: getTitle(doc), nodes: getNodes(doc), edges: getEdges(doc) })));
+  });
+
+  app.get('/api/rooms/:id/relational', guardRoom, async (req, res) => {
+    const id = String(req.params.id);
+    if (await deps.isNewRoom(id)) {
+      res.status(404).json({ ok: false, error: 'not-found' });
+      return;
+    }
+    const text = await deps.withDoc(id, (doc) => toMarkup(readRelationalSource(doc)));
+    res.type('text/plain; charset=utf-8').send(text);
+  });
+
+  app.put('/api/rooms/:id/relational', guardRoom, readModelBody, async (req, res) => {
+    const id = String(req.params.id);
+    const raw = modelTextOf(req);
+    if (raw === null) {
+      res.status(400).json({ ok: false, error: 'bad-request', message: 'expected a JSON body like { "text": "..." }' });
+      return;
+    }
+    // 줄 끝을 \n 하나로 맞춘다(화면의 편집기도 \n만 쓴다)
+    const text = raw.replace(/\r\n?/g, '\n');
+    // 틀린 글은 방을 건드리기 전에 돌려보낸다. 경고(기본키가 없는 테이블)는 받는다. _이름_ 은 밑줄이다
+    const { schema, problems } = parseMarkup(text);
+    const errors = problems.filter((p) => p.severity === 'error');
+    if (errors.length > 0) {
+      const first = errors[0];
+      res.status(400).json({
+        ok: false,
+        error: 'syntax',
+        message: problemText(first, 'en'),
+        line: first.line,
+        column: first.column,
+        problems: problems.map(problemJson),
+      });
+      return;
+    }
+    // 관계 모델 글은 다이어그램이 있는 방에 붙는다. 읽기 API와 같이 없는 방은 만들지 않는다
+    if (await deps.isNewRoom(id)) {
+      res.status(404).json({ ok: false, error: 'not-found' });
+      return;
+    }
+    const source = fromMarkup(text);
+    const changed = await deps.withDoc(id, (doc) => {
+      const before = JSON.stringify(readRelationalSource(doc));
+      setRelationalSource(doc, source, 'api');
+      return before !== JSON.stringify(readRelationalSource(doc));
+    });
+    res.json({ ok: true, room: id, changed, tables: schema.tables.length, problems: problems.map(problemJson) });
+  });
+
+  app.get('/api/rooms/:id/sql', guardRoom, async (req, res) => {
+    const id = String(req.params.id);
+    const asked = req.query.dialect === undefined ? null : String(req.query.dialect).toLowerCase();
+    if (asked !== null && !isSqlDialect(asked)) {
+      res.status(400).json({ ok: false, error: 'bad-dialect', message: 'dialect must be postgresql, mysql or oracle' });
+      return;
+    }
+    if (await deps.isNewRoom(id)) {
+      res.status(404).json({ ok: false, error: 'not-found' });
+      return;
+    }
+    const out = await deps.withDoc(id, (doc) => {
+      // 따로 묻지 않으면 방에서 고른 DBMS, 고른 적이 없으면 PostgreSQL
+      const dialect = asked !== null && isSqlDialect(asked) ? asked : (readRoomDialect(doc) ?? 'postgresql');
+      const { schema, problems } = parseRelational(readRelationalSource(doc));
+      const errors = problems.filter((p) => p.severity === 'error').length;
+      const result = toSql(schema, readColumnSettings(doc), dialect, { title: getTitle(doc) || undefined, listMissingTypes: true, textErrors: errors });
+      return { ...result, errors };
+    });
+    res.setHeader('X-Missing-Types', String(out.missingTypes.length));
+    res.setHeader('X-Relational-Errors', String(out.errors));
+    res.type('text/plain; charset=utf-8').send(out.sql);
   });
 
   app.put('/api/rooms/:id/model', guardRoom, readModelBody, async (req, res) => {

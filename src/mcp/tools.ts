@@ -3,9 +3,11 @@
  * 결과는 모두 사람이 읽을 수 있는 짧은 글이다. 모델이 고칠 수 있는 실패(문법 오류, 없는 방, 요청 제한)는
  * 프로토콜 오류가 아니라 isError가 붙은 도구 결과로 돌려준다.
  */
-import { formatSummary, httpErrorMessage, reportLines } from '../cli/format';
+import { formatSummary, httpErrorMessage, problemLine, reportLines } from '../cli/format';
 import { SYNTAX_TEXT } from '../cli/syntax';
 import { applyModel, parseModel, printModel } from '../shared/model';
+import { parseMarkup, toSql } from '../shared/relational';
+import type { SqlDialect } from '../shared/relational/userSchema';
 import type { Model } from '../shared/model/types';
 import { validateDiagram } from '../shared/rules';
 import { ToolError, type DiagramBackend, type WriteResult } from './backend';
@@ -32,6 +34,7 @@ export interface DiagramTools {
   update(args: { room: string; text: string; relayout?: boolean }): Promise<ToolResult>;
   validate(args: { text: string }): Promise<ToolResult>;
   syntax(): Promise<ToolResult>;
+  sql(args: { room: string; dialect?: SqlDialect }): Promise<ToolResult>;
 }
 
 function ok(lines: string[]): ToolResult {
@@ -118,5 +121,32 @@ export function createDiagramTools(backend: DiagramBackend, hooks: ToolHooks = {
       }),
 
     syntax: () => run(() => ok([SYNTAX_TEXT.replace(/\n+$/, '')])),
+
+    sql: ({ room, dialect }) =>
+      run(async () => {
+        const d = await backend.relational(room);
+        // d.text는 일반 텍스트 교환 표기(_이름_ = 밑줄)다. 문제의 위치도 이 글 기준이다
+        const { schema, problems } = parseMarkup(d.text);
+        if (schema.tables.length === 0 && problems.length === 0) {
+          // ERD에서 테이블을 만들어 내지 않는다. 사람이 앱에서 관계 모델을 적어야 한다
+          return failed(
+            `${d.url} has no relational model yet, so there is nothing to convert. People write the relational model themselves in the app's relational model pane; this tool does not derive tables from the ER diagram.`,
+          );
+        }
+        const chosen = dialect ?? d.dialect ?? 'postgresql';
+        const errors = problems.filter((p) => p.severity === 'error').length;
+        const result = toSql(schema, d.settings, chosen, { title: d.title || undefined, listMissingTypes: true, textErrors: errors });
+        const lines = [`Relational model written in ${d.url} (_x_ = underlined primary-key column; Foreign Key lines belong to the table above):`, d.text.replace(/\n+$/, '')];
+        if (problems.length > 0) lines.push('', 'Problems in that text (line:column):', ...problems.map((p) => problemLine(p, 'en')));
+        if (result.missingTypes.length > 0) {
+          lines.push(
+            '',
+            `Columns without a type (${result.missingTypes.length}); the SQL marks each with a placeholder and will not run until people set the types in the app:`,
+            ...result.missingTypes.map((m) => `  ${m.table}.${m.column}`),
+          );
+        }
+        lines.push('', `SQL (${chosen}):`, result.sql.replace(/\n+$/, ''));
+        return ok(lines);
+      }),
   };
 }

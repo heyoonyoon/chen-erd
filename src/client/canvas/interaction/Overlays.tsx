@@ -279,17 +279,37 @@ export const EdgeEndsLayer = memo(function EdgeEndsLayer() {
   );
 });
 
-/** 연결할 수 없는 이유를 마우스 옆에 보여 주는 말풍선(HTML 레이어) */
+/** 연결할 수 없는 이유 말풍선의 최대 폭(px). Canvas.css의 max-width와 같다 */
+const REASON_MAX_W = 280;
+/** 말풍선 아래쪽에 남겨 둘 대략의 높이(px). 이보다 바닥에 가까우면 마우스 위에 띄운다 */
+const REASON_ROOM_BELOW = 64;
+
+/**
+ * 말풍선 위치(캔버스 영역 기준 px). 캔버스 오른쪽 끝에서는 잘리지 않게 왼쪽으로 당기고,
+ * 아래가 모자라면 마우스 위로 올린다. 캔버스 크기를 모르면(0) 그대로 둔다.
+ */
+export function connectReasonPosition(p: Point, size: { w: number; h: number }): { left: number; top: number; above: boolean } {
+  const boxW = size.w > 0 ? Math.min(REASON_MAX_W, Math.max(size.w - 16, 0)) : REASON_MAX_W;
+  const maxLeft = size.w > 0 ? size.w - boxW - 8 : Infinity;
+  const left = Math.max(8, Math.min(p.x + 14, maxLeft));
+  const above = size.h > 0 && p.y + 18 + REASON_ROOM_BELOW > size.h && p.y > REASON_ROOM_BELOW;
+  return { left, top: above ? p.y - 12 : p.y + 18, above };
+}
+
+/** 연결할 수 없는 이유를 마우스 옆에 보여 주는 말풍선(HTML 레이어). 위치는 캔버스 영역 안으로 맞춘다 */
 export const ConnectReason = memo(function ConnectReason() {
   const reason = useCanvasLocal((s) => s.connectReason);
   const draft = useUi((s) => s.connectDraft);
   const viewport = useUi((s) => s.viewport);
+  const size = useUi((s) => s.canvasSize);
   if (!reason || !draft) return null;
-  const p = worldToScreen(viewport, draft.to);
-  // 화면 오른쪽 끝에서는 말풍선(최대 280px)이 잘리지 않게 왼쪽으로 당긴다
-  const left = Math.max(8, Math.min(p.x + 14, window.innerWidth - 296));
+  const pos = connectReasonPosition(worldToScreen(viewport, draft.to), size);
   return (
-    <div className="canvas-connect-reason" role="status" style={{ left, top: p.y + 18 }}>
+    <div
+      className={`canvas-connect-reason${pos.above ? ' is-above' : ''}`}
+      role="status"
+      style={{ left: pos.left, top: pos.top }}
+    >
       {reason}
     </div>
   );

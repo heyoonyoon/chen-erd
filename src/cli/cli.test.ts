@@ -238,8 +238,71 @@ describe('modelll CLI', () => {
     expect(noFile.err).toEqual(['error: cannot open missing.mdl: no such file']);
   });
 
+  it('relational은 방에 적힌 관계 모델 글을 내고, 없으면 다이어그램에서 만들지 않고 알린다', async () => {
+    await boot();
+    const model = `${MODEL}relationship 수강 (학생 M, 과목 N) { 성적 }\n`;
+    const url = (await run(['new', 'model.mdl'], { 'model.mdl': model })).out[0];
+    const empty = await run(['relational', url]);
+    expect(empty.code).toBe(0);
+    expect(empty.out).toEqual([]);
+    expect(empty.err).toEqual([`${url} has no relational model yet (people write it in the app, or use "modelll relational push")`]);
+
+    const rel = '학생(_학번_, 이름)\n과목(_과목코드_)\n수강(_학번_, _과목코드_, 성적)\nForeign Key (학번) references 학생\nForeign Key (과목코드) references 과목 (과목코드)\n로그(시각)\n';
+    const pushed = await run(['relational', 'push', url, 'rel.txt'], { 'rel.txt': rel });
+    expect(pushed.code).toBe(0);
+    expect(pushed.out).toEqual([`Updated the relational model of ${url} (4 tables)`, 'rel.txt:6:1: warning: “로그” has no primary key. Underline the names of the primary-key columns.']);
+    const again = await run(['relational', 'push', url, 'rel.txt', '--json', '--lang', 'ko'], { 'rel.txt': rel });
+    expect(JSON.parse(again.out.join('\n'))).toMatchObject({ ok: true, changed: false, tables: 4, url });
+
+    const shown = await run(['relational', url]);
+    expect(shown.out).toEqual([rel.trimEnd()]);
+
+    const pg = await run(['sql', url]);
+    expect(pg.code).toBe(0);
+    expect(pg.out[0]).toContain('CREATE TABLE "수강"');
+    expect(pg.out[0]).toContain('"성적" /* 타입 미지정 */');
+    expect(pg.out[0]).toContain('PRIMARY KEY ("학번", "과목코드")');
+    expect(pg.out[0]).toContain('FOREIGN KEY ("과목코드") REFERENCES "과목" ("과목코드")');
+    expect(pg.err).toEqual(['warning: 7 columns have no type; set the types in the app (the SQL marks them and will not run as is)']);
+    const mysql = await run(['sql', url, '--dialect', 'MySQL']);
+    expect(mysql.out[0]).toContain('CREATE TABLE `수강`');
+    const missing = await run(['sql', 'nobody1234']);
+    expect(missing.code).toBe(1);
+    expect(missing.err[0]).toContain('does not exist');
+  });
+
+  it('relational push는 틀린 글을 보내지 않고 문제를 모두 알린다', async () => {
+    await boot();
+    const url = (await run(['new', 'model.mdl'], { 'model.mdl': MODEL })).out[0];
+    const bad = await run(['relational', 'push', url, 'rel.txt', '--lang', 'ko'], { 'rel.txt': '학생(_학번_, _학번_, 학과코드)\r\nForeign Key (학과코드) references 학과\n과목(코드\n학년(_학년_, 학과 -> 학과)' });
+    expect(bad.code).toBe(1);
+    // 위치는 파일(_이름_ 표기) 기준이다
+    expect(bad.err).toEqual([
+      "rel.txt:1:11: error: '학생' 테이블에 컬럼 '학번'이 두 번 나옵니다",
+      "rel.txt:2:31: error: 외래키가 가리키는 테이블 '학과'가 없습니다",
+      "rel.txt:3:3: error: 여는 괄호 '('에 맞는 닫는 괄호 ')'가 없습니다",
+      'rel.txt:4:10: error: 외래키는 화살표로 적지 않습니다. 테이블 아래 줄에 Foreign Key (컬럼) references 테이블 (컬럼)처럼 적습니다',
+    ]);
+    expect((await run(['relational', url])).out).toEqual([]);
+    const noRoom = await run(['relational', 'push', 'nobody1234', 'rel.txt'], { 'rel.txt': '학생(_학번_)' });
+    expect(noRoom.code).toBe(1);
+    expect(noRoom.err[0]).toContain('does not exist');
+  });
+
   it('잘못 적은 명령은 2로 끝난다', async () => {
-    for (const argv of [['pulll'], ['pull'], ['push', 'abc123'], ['pull', 'not a room'], ['pull', 'abc123', '--server', 'ftp://x']]) {
+    for (const argv of [
+      ['pulll'],
+      ['pull'],
+      ['push', 'abc123'],
+      ['pull', 'not a room'],
+      ['pull', 'abc123', '--server', 'ftp://x'],
+      ['sql', 'abc123', '--dialect', 'sqlite'],
+      ['relational', 'abc123', '--dialect', 'mysql'],
+      ['relational'],
+      ['relational', 'abc123', 'x.txt'],
+      ['relational', 'pull', 'abc123', 'x.txt'],
+      ['relational', 'push', 'abc123', 'x.txt', 'y'],
+    ]) {
       const result = await run(argv);
       expect(result.code, argv.join(' ')).toBe(2);
       expect(result.err, argv.join(' ')).toHaveLength(1);
@@ -252,7 +315,7 @@ describe('modelll CLI', () => {
       const help = await run(argv);
       expect(help.code).toBe(0);
       const text = help.out.join('\n');
-      for (const word of ['modelll new', 'modelll pull', 'modelll push', 'modelll validate', 'modelll syntax', '--server', '--json', '--lang', 'MODELLL_SERVER']) {
+      for (const word of ['modelll new', 'modelll pull', 'modelll push', 'modelll validate', 'modelll syntax', 'modelll relational', 'modelll relational push', 'modelll sql', '--dialect', '--server', '--json', '--lang', 'MODELLL_SERVER']) {
         expect(text, word).toContain(word);
       }
       // MCP는 CLI가 아니라 서버의 /mcp로 쓴다. 도움말은 그 주소만 알려 준다

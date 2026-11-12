@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { version } from '../../package.json';
 import { SYNTAX_TEXT } from '../cli/syntax';
 import { applyModel, parseModel } from '../shared/model';
+import { columnKey } from '../shared/relational/settings';
+import type { ColumnSettings } from '../shared/relational/userSchema';
 import { validateDiagram } from '../shared/rules';
 import { ToolError, resolveRoom, type DiagramBackend, type WriteResult } from './backend';
 import { DESCRIPTIONS, SUMMARY_EXAMPLE, SYNTAX_SUMMARY, TOOL_NAMES } from './descriptions';
@@ -18,7 +20,7 @@ relationship 수강 (학생 M, 과목 N)
 `;
 
 /** 방을 메모리에 두는 백엔드. 받은 호출을 calls에 적어 둔다 */
-function fakeBackend(rooms: Record<string, string> = {}) {
+function fakeBackend(rooms: Record<string, string> = {}, relational: Record<string, { text: string; settings?: ColumnSettings }> = {}) {
   const calls: Array<{ op: string; room?: string; text?: string; relayout?: boolean }> = [];
   let created = 0;
 
@@ -47,6 +49,13 @@ function fakeBackend(rooms: Record<string, string> = {}) {
       const roomId = resolveRoom(room, ORIGIN);
       if (!(roomId in rooms)) throw new ToolError(`room "${roomId}" does not exist on ${ORIGIN}`);
       return write(roomId, text);
+    },
+    async relational(room) {
+      calls.push({ op: 'relational', room });
+      const roomId = resolveRoom(room, ORIGIN);
+      if (!(roomId in rooms)) throw new ToolError(`room "${roomId}" does not exist on ${ORIGIN}`);
+      const model = parseModel(rooms[roomId]);
+      return { url: `${ORIGIN}/r/${roomId}`, title: model.title ?? '', text: relational[roomId]?.text ?? '', settings: relational[roomId]?.settings ?? {} };
     },
   };
   return { backend, rooms, calls };
@@ -208,6 +217,41 @@ describe('MCP 도구', () => {
     expect(textOf(await tools.syntax())).toBe(SYNTAX_TEXT.trimEnd());
   });
 
+  it('diagram_to_sql은 사람이 적은 관계 모델 글과 그 글에서 만든 CREATE TABLE 문을 함께 준다', async () => {
+    const text = '학생(_학번_, 이름)\n수강(_학번_, 성적)\nForeign Key (학번) references 학생\n';
+    const { backend } = fakeBackend({ abc: STUDENTS }, { abc: { text, settings: { [columnKey('학생', '학번')]: { type: 'CHAR(8)' }, [columnKey('학생', '이름')]: { type: 'VARCHAR(20)' } } } });
+    const tools = createDiagramTools(backend);
+    const pg = textOf(await tools.sql({ room: `${ORIGIN}/r/abc` }));
+    expect(pg).toContain(`Relational model written in https://modelll.app/r/abc (_x_ = underlined primary-key column; Foreign Key lines belong to the table above):\n${text.trimEnd()}\n`);
+    expect(pg).toContain('Columns without a type (1); the SQL marks each with a placeholder');
+    expect(pg).toContain('  수강.성적');
+    expect(pg).toContain('SQL (postgresql):\n-- 수강신청 (PostgreSQL)');
+    expect(pg).toContain('CREATE TABLE "수강" (\n  "학번" CHAR(8) NOT NULL,\n  "성적" /* 타입 미지정 */,');
+    expect(pg).toContain('CONSTRAINT "수강_fk1" FOREIGN KEY ("학번") REFERENCES "학생" ("학번")');
+    expect(pg).not.toContain('Problems');
+    expect(textOf(await tools.sql({ room: 'abc', dialect: 'mysql' }))).toContain('CREATE TABLE `학생`');
+    const missing = await tools.sql({ room: 'nobody' });
+    expect(missing.isError).toBe(true);
+  });
+
+  it('diagram_to_sql은 글의 문제를 줄과 칸으로 알린다', async () => {
+    const { backend } = fakeBackend({ abc: STUDENTS }, { abc: { text: '학생(_학번_, 학과코드)\nForeign Key (학과코드) references 학과\n로그(시각)' } });
+    const result = textOf(await createDiagramTools(backend).sql({ room: 'abc' }));
+    expect(result).toContain('Problems in that text (line:column):\nerror: 2:31: The foreign key points to “학과”, but there is no such table.\nwarning: 3:1: “로그” has no primary key. Underline the names of the primary-key columns.');
+    expect(result).toContain('-- 관계 모델 글에 오류가 1개 있어 읽은 부분만 옮겼습니다.');
+  });
+
+  it('diagram_to_sql은 관계 모델 글이 없으면 다이어그램에서 만들지 않고 그렇다고 알린다', async () => {
+    for (const text of [undefined, '', '  \n# 아직 비어 있음\n']) {
+      const { backend } = fakeBackend({ abc: STUDENTS }, text === undefined ? {} : { abc: { text } });
+      const result = await createDiagramTools(backend).sql({ room: 'abc' });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toBe(
+        "https://modelll.app/r/abc has no relational model yet, so there is nothing to convert. People write the relational model themselves in the app's relational model pane; this tool does not derive tables from the ER diagram.",
+      );
+    }
+  });
+
   it('256 KB가 넘는 글은 받지 않는다', async () => {
     const { backend, calls } = fakeBackend();
     const tools = createDiagramTools(backend);
@@ -245,6 +289,9 @@ describe('MCP 도구', () => {
         throw new Error('disk on fire');
       },
       read: async () => {
+        throw new Error('disk on fire');
+      },
+      relational: async () => {
         throw new Error('disk on fire');
       },
       update: async () => {
@@ -292,13 +339,13 @@ describe('MCP 서버', () => {
     return { client, server };
   }
 
-  it('도구 다섯 개를 이름, 설명, 인자, 주석과 함께 내놓는다', async () => {
+  it('도구 여섯 개를 이름, 설명, 인자, 주석과 함께 내놓는다', async () => {
     const { client, server } = await connect(fakeBackend().backend);
     expect(client.getServerVersion()).toMatchObject({ name: 'modelll', version });
     expect(client.getInstructions()).toContain('update_diagram');
 
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax']);
+    expect(tools.map((t) => t.name)).toEqual(['create_diagram', 'read_diagram', 'update_diagram', 'validate_diagram', 'diagram_syntax', 'diagram_to_sql']);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
     for (const tool of tools) {
       expect(tool.description, tool.name).toBe(DESCRIPTIONS[Object.entries(TOOL_NAMES).find(([, name]) => name === tool.name)![0] as keyof typeof DESCRIPTIONS]);
@@ -316,6 +363,9 @@ describe('MCP 서버', () => {
     expect(byName.diagram_syntax.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });
     expect(byName.create_diagram.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     expect(byName.update_diagram.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: true });
+    expect(byName.diagram_to_sql.annotations).toMatchObject({ readOnlyHint: true });
+    expect(byName.diagram_to_sql.inputSchema.required).toEqual(['room']);
+    expect(Object.keys(byName.diagram_to_sql.inputSchema.properties ?? {})).toEqual(['room', 'dialect']);
 
     await client.close();
     await server.close();

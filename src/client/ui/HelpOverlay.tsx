@@ -3,10 +3,11 @@
  *
  * Esc로 닫는 것은 전역 단축키(useShortcuts의 Esc 순서 마지막)가 맡는다. 여기서 따로 받으면 Esc 한 번에 두 가지가 처리된다.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SHORTCUT_LIST, type ShortcutGroup, type ShortcutInfo } from '../canvas/shortcuts';
 import { useT, type MessageKey } from '../i18n';
 import { ui } from '../state/ui';
+import { LegendSections } from './Legend';
 import './HelpOverlay.css';
 
 /** 2단으로 나눠 놓는 묶음 순서(양쪽 길이가 비슷하도록) */
@@ -49,6 +50,7 @@ function ShortcutTable({ group, items }: { group: ShortcutGroup; items: Shortcut
 export function HelpOverlay() {
   const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'shortcuts' | 'notation'>('shortcuts');
 
   // 열릴 때 창으로 포커스를 옮기고, 닫히면 원래 있던 곳으로 돌려준다
   useEffect(() => {
@@ -74,9 +76,24 @@ export function HelpOverlay() {
     >
       <div ref={panelRef} className="helpoverlay panel" role="dialog" aria-modal="true" aria-labelledby="helpoverlay-title" tabIndex={-1}>
         <header className="helpoverlay-header">
-          <h2 id="helpoverlay-title" className="helpoverlay-title">
-            {t('help.title')}
+          <h2 id="helpoverlay-title" className="helpoverlay-sr">
+            {tab === 'shortcuts' ? t('help.title') : t('legend.title')}
           </h2>
+          <div className="helpoverlay-tabs" role="tablist">
+            {(['shortcuts', 'notation'] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                className={`helpoverlay-tab${tab === id ? ' is-active' : ''}`}
+                data-testid={`help-tab-${id}`}
+                onClick={() => setTab(id)}
+              >
+                {id === 'shortcuts' ? t('help.title') : t('legend.title')}
+              </button>
+            ))}
+          </div>
           <button type="button" className="btn btn-ghost btn-icon" aria-label={t('common.close')} title={t('common.close')} data-testid="help-close" onClick={close}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
               <path d="M3 3l8 8M11 3l-8 8" />
@@ -84,7 +101,12 @@ export function HelpOverlay() {
           </button>
         </header>
 
-        <div className="helpoverlay-body">
+        <div className="helpoverlay-body" hidden={tab !== 'notation'} data-testid="help-notation">
+          <div className="helpoverlay-legend">
+            <LegendSections />
+          </div>
+        </div>
+        <div className="helpoverlay-body" hidden={tab !== 'shortcuts'}>
           <div className="helpoverlay-columns">
             {columns.map((groups, i) => (
               <div key={i} className="helpoverlay-column">

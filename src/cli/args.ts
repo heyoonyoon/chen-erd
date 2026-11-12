@@ -4,7 +4,7 @@
 import { parseArgs } from 'node:util';
 import { CliError } from './errors';
 
-export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'help' | 'version';
+export type CommandName = 'new' | 'pull' | 'push' | 'validate' | 'syntax' | 'relational' | 'sql' | 'help' | 'version';
 
 export interface CliOptions {
   /** --server: 방 id만 적었을 때와 new에서 쓸 서버 */
@@ -19,6 +19,8 @@ export interface CliOptions {
   json: boolean;
   /** --lang: 검증 결과의 언어(ko, en) */
   lang?: string;
+  /** --dialect: sql 명령의 SQL 방언(postgresql, mysql, oracle) */
+  dialect?: string;
 }
 
 export interface ParsedArgs {
@@ -35,7 +37,7 @@ interface CommandSpec {
   /** 사용법 한 줄 */
   usage: string;
   /** 이 명령에서만 뜻이 있는 옵션 */
-  options: Array<'server' | 'title' | 'output' | 'relayout'>;
+  options: Array<'server' | 'title' | 'output' | 'relayout' | 'dialect'>;
 }
 
 export const COMMANDS: Record<Exclude<CommandName, 'help' | 'version'>, CommandSpec> = {
@@ -44,9 +46,13 @@ export const COMMANDS: Record<Exclude<CommandName, 'help' | 'version'>, CommandS
   push: { min: 2, max: 2, usage: 'modelll push <room> <file|-> [--relayout]', options: ['server', 'relayout'] },
   validate: { min: 1, max: 1, usage: 'modelll validate <file|->', options: [] },
   syntax: { min: 0, max: 0, usage: 'modelll syntax', options: [] },
+  relational: { min: 1, max: 3, usage: 'modelll relational <room> | modelll relational push <room> <file|->', options: ['server'] },
+  sql: { min: 1, max: 1, usage: 'modelll sql <room> [--dialect postgresql|mysql|oracle]', options: ['server', 'dialect'] },
 };
 
-const SPECIFIC_OPTIONS = ['server', 'title', 'output', 'relayout'] as const;
+export const SQL_DIALECT_NAMES = ['postgresql', 'mysql', 'oracle'] as const;
+
+const SPECIFIC_OPTIONS = ['server', 'title', 'output', 'relayout', 'dialect'] as const;
 
 function isCommand(name: string): name is keyof typeof COMMANDS {
   return Object.hasOwn(COMMANDS, name);
@@ -66,6 +72,7 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
         relayout: { type: 'boolean' },
         json: { type: 'boolean' },
         lang: { type: 'string' },
+        dialect: { type: 'string' },
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean', short: 'v' },
       },
@@ -81,6 +88,7 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
     relayout: values.relayout === true,
     json: values.json === true,
     lang: values.lang,
+    dialect: values.dialect,
   };
 
   if (values.help) return { command: 'help', args: [], options };
@@ -97,6 +105,13 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
     if (given && !spec.options.includes(option)) {
       throw new CliError(`--${option} is not an option of "${name}" (usage: ${spec.usage})`, 2);
     }
+  }
+  if (options.dialect !== undefined) {
+    const dialect = options.dialect.toLowerCase();
+    if (!(SQL_DIALECT_NAMES as readonly string[]).includes(dialect)) {
+      throw new CliError(`--dialect must be one of ${SQL_DIALECT_NAMES.join(', ')} (usage: ${spec.usage})`, 2);
+    }
+    options.dialect = dialect;
   }
   return { command: name, args, options };
 }

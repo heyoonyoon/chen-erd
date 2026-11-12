@@ -14,10 +14,17 @@ export interface EdgeShapeProps {
   selected?: boolean;
   hovered?: boolean;
   highlighted?: boolean;
+  /** 다른 pane이 가리킨 선. 굵은 호박색 선으로 그린다 */
+  related?: boolean;
+  /** 다른 pane의 강조가 걸려 있고 이 선은 그 대상이 아니다. 옅게 그린다 */
+  dimmed?: boolean;
 }
 
 const HIT_WIDTH = 14;
 const HIGHLIGHT_COLOR = '#f59e0b';
+/** 다른 pane이 가리킨 선의 색(호박색보다 한 단계 짙게 해서 흰 바탕에서도 또렷하게) */
+const RELATED_STROKE = '#d97706';
+const DIMMED_OPACITY = 0.42;
 const ROLE_FONT_SIZE = STYLE.labelFontSize - 2;
 
 /**
@@ -32,10 +39,26 @@ function roleAnchor(geometry: EdgeGeometry): 'start' | 'middle' | 'end' {
   return dx > 0 ? 'start' : 'end';
 }
 
-function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeShapeProps) {
-  const color = selected ? STYLE.accent : STYLE.stroke;
+function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted, related, dimmed }: EdgeShapeProps) {
+  const color = selected ? STYLE.accent : related ? RELATED_STROKE : STYLE.stroke;
+  // 글자는 강조 중에도 읽기 쉬운 본래 색으로 둔다
+  const labelColor = selected ? STYLE.accent : STYLE.stroke;
+  const width = related && !selected ? STYLE.strokeWidth + 1 : STYLE.strokeWidth;
   return (
-    <g data-edge-id={edge.id}>
+    <g data-edge-id={edge.id} data-related={related || undefined} opacity={dimmed && !related ? DIMMED_OPACITY : undefined}>
+      {related && (
+        <path
+          data-related-halo=""
+          d={geometry.hitPath}
+          fill="none"
+          stroke={HIGHLIGHT_COLOR}
+          strokeOpacity={0.3}
+          strokeWidth={12}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
+      )}
       {highlighted && (
         <path
           d={geometry.hitPath}
@@ -66,7 +89,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           d={d}
           fill="none"
           stroke={color}
-          strokeWidth={STYLE.strokeWidth}
+          strokeWidth={width}
           strokeLinecap="butt"
           strokeLinejoin="miter"
           pointerEvents="none"
@@ -90,7 +113,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           textAnchor="middle"
           fontFamily={STYLE.fontFamily}
           fontSize={STYLE.labelFontSize}
-          fill={color}
+          fill={labelColor}
           stroke="#ffffff"
           strokeWidth={4}
           strokeLinejoin="round"
@@ -108,7 +131,7 @@ function EdgeShapeImpl({ edge, geometry, selected, hovered, highlighted }: EdgeS
           textAnchor={roleAnchor(geometry)}
           fontFamily={STYLE.fontFamily}
           fontSize={ROLE_FONT_SIZE}
-          fill={color}
+          fill={labelColor}
           stroke="#ffffff"
           strokeWidth={4}
           strokeLinejoin="round"
@@ -129,6 +152,9 @@ function samePoint(a: { x: number; y: number }, b: { x: number; y: number }): bo
 /** geometry는 렌더마다 새 객체로 계산되어 오므로 내용으로 비교해 다시 그리기를 줄인다 */
 function sameProps(a: EdgeShapeProps, b: EdgeShapeProps): boolean {
   if (!!a.selected !== !!b.selected || !!a.hovered !== !!b.hovered || !!a.highlighted !== !!b.highlighted) {
+    return false;
+  }
+  if (!!a.related !== !!b.related || !!a.dimmed !== !!b.dimmed) {
     return false;
   }
   if (a.edge !== b.edge) {

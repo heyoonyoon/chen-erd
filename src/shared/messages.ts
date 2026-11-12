@@ -70,8 +70,38 @@ export type RuleFragmentKey =
   | 'rules.keyWord.key'
   | 'rules.keyWord.partial';
 
+/** 사람이 적은 관계 모델 글(shared/relational)의 문법 오류와 내용 문제 */
+export type RelationalMessageKey =
+  | 'rel.syntax.expectedTableName'
+  | 'rel.syntax.expectedOpenParen'
+  | 'rel.syntax.expectedColumn'
+  | 'rel.syntax.expectedCommaOrClose'
+  | 'rel.syntax.expectedRefTable'
+  | 'rel.syntax.unterminatedString'
+  | 'rel.syntax.extraAfterTable'
+  | 'rel.syntax.unclosedParen'
+  | 'rel.syntax.emptyName'
+  | 'rel.syntax.duplicateTable'
+  | 'rel.syntax.duplicateColumn'
+  | 'rel.syntax.arrowNotSupported'
+  | 'rel.syntax.underscoreKey'
+  | 'rel.syntax.partialUnderline'
+  | 'rel.syntax.underlineIgnored'
+  | 'rel.syntax.foreignKeyBeforeTable'
+  | 'rel.syntax.expectedForeignKeyColumns'
+  | 'rel.syntax.expectedReferences'
+  | 'rel.syntax.duplicateInList'
+  | 'rel.schema.unknownTable'
+  | 'rel.schema.foreignKeyArity'
+  | 'rel.schema.refNoPrimaryKey'
+  | 'rel.schema.noPrimaryKey'
+  | 'rel.schema.unknownForeignKeyColumn'
+  | 'rel.schema.refColumnCount'
+  | 'rel.schema.unknownRefColumn'
+  | 'rel.schema.refNotPrimaryKey';
+
 /** 공용 코드가 쓰는 모든 키. 클라이언트의 한국어 사전에 빠짐없이 있어야 한다(i18n/index.ts에서 컴파일 때 검사). */
-export type SharedMessageKey = ConnectReasonKey | IssueMessageKey | RuleFragmentKey;
+export type SharedMessageKey = ConnectReasonKey | IssueMessageKey | RuleFragmentKey | RelationalMessageKey;
 
 export type SharedMessage = Message<SharedMessageKey>;
 

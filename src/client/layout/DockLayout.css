@@ -1,0 +1,80 @@
+/* pane 배치 틀: 나눔선, 탭 줄, 내용 칸, 끌어 놓기 미리 보기 */
+.dock { position: relative; display: flex; flex: 1 1 auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg-canvas); }
+
+/* 나눔 */
+.dock-split { display: flex; flex: 1 1 0; min-width: 0; min-height: 0; }
+.dock-split-row { flex-direction: row; }
+.dock-split-column { flex-direction: column; }
+.dock-cell { display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+
+/* 나눔선: 1px 선, 잡는 자리는 양쪽으로 더 넓다 */
+.dock-divider { position: relative; z-index: 3; flex: 0 0 1px; background: var(--border); outline: none; touch-action: none; transition: background 0.1s 0.15s; }
+.dock-divider::before { content: ''; position: absolute; }
+.dock-split-row > .dock-divider { cursor: col-resize; }
+.dock-split-row > .dock-divider::before { top: 0; bottom: 0; left: -3px; right: -3px; }
+.dock-split-column > .dock-divider { cursor: row-resize; }
+.dock-split-column > .dock-divider::before { left: 0; right: 0; top: -3px; bottom: -3px; }
+.dock-divider::after { content: ''; position: absolute; inset: 0; background: transparent; transition: background 0.1s 0.15s, box-shadow 0.1s 0.15s; }
+.dock-divider:hover::after, .dock-divider.is-active::after, .dock-divider:focus-visible::after { background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.dock-divider.is-active::after, .dock-divider:focus-visible::after { transition: none; }
+
+/* 그룹 */
+.dock-group { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; background: var(--bg-panel); }
+.dock-bar { display: flex; flex: 0 0 32px; height: 32px; min-width: 0; background: var(--bg-canvas); border-bottom: 1px solid var(--border); }
+.dock-tabs { display: flex; flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.dock-tabs::-webkit-scrollbar { display: none; }
+
+.dock-tab { position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 32px; padding: 0 4px 0 10px; border-right: 1px solid var(--border); color: var(--text-dim); font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; outline: none; }
+.dock-narrow .dock-tab { touch-action: pan-x; }
+.dock-tab::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: transparent; }
+.dock-tab:hover { color: var(--text); background: var(--bg-hover); }
+.dock-tab.is-active { color: var(--text); background: var(--bg-panel); }
+/* 활성 탭은 아래 경계선을 덮어 내용 칸과 이어 보인다 */
+.dock-tab.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--bg-panel); }
+.dock-group.is-focused .dock-tab.is-active::before { background: var(--accent); }
+.dock-group:not(.is-focused) .dock-tab.is-active::before { background: var(--border-strong); }
+/* 지금 쓰고 있는 그룹을 드러낸다: 테두리를 파랗게 두르고, 다른 그룹의 활성 탭은 흐리게 한다 */
+.dock-group { position: relative; isolation: isolate; }
+.dock-group.is-focused::after { content: ''; position: absolute; inset: 0; border: 1px solid var(--accent); pointer-events: none; z-index: 30; }
+.dock-narrow .dock-group.is-focused::after { display: none; }
+.dock-group:not(.is-focused) .dock-tab.is-active { color: var(--text-dim); }
+.dock-group:not(.is-focused) .dock-tab.is-active .dock-tab-icon { color: var(--text-dim); }
+.dock-tab:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.dock-tab.is-dragging { opacity: 0.5; }
+.dock-tab-icon { flex: none; display: inline-flex; color: var(--text-dim); }
+.dock-tab.is-active .dock-tab-icon { color: var(--accent); }
+.dock-tab-icon > svg { width: 14px; height: 14px; }
+.dock-tab-title { overflow: hidden; text-overflow: ellipsis; }
+.dock-tab-close { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer; opacity: 0; transition: opacity 0.1s; }
+.dock-tab:hover .dock-tab-close, .dock-tab.is-active .dock-tab-close, .dock-tab:focus-visible .dock-tab-close { opacity: 1; }
+.dock-tab-close:hover { background: var(--border); color: var(--text); }
+/* 닫기 단추가 없는(마지막) 탭도 같은 폭의 여백을 둔다 */
+.dock-tab:not(:has(.dock-tab-close)) { padding-right: 12px; }
+
+.dock-actions { flex: none; display: flex; align-items: center; padding: 0 4px; }
+/* 좁은 화면의 탭 줄 끝(패널 메뉴 자리) */
+.dock-bar-end { border-left: 1px solid var(--border); }
+.dock-bar-end .panemenu-button { height: 26px; }
+.dock-action { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.dock-action:hover { background: var(--bg-hover); color: var(--text); }
+.dock-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* 내용 칸: pane은 칸을 꽉 채운다(안의 ResizeObserver가 칸 크기를 그대로 받는다) */
+.dock-content { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg-panel); }
+.dock-pane { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.dock-pane > * { flex: 1 1 auto; min-height: 0; }
+
+/* 보이지 않는 pane의 보관함. 크기를 지닌 채로 화면과 포인터에서 빠진다 */
+.dock-holder { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; contain: strict; }
+.dock-pane.is-parked { inset: auto; left: 0; top: 0; }
+
+/* 끌어 놓기 */
+.dock.is-dragging, .dock.is-dragging .dock-tab { cursor: grabbing; }
+.dock-overlay { position: absolute; inset: 0; z-index: 50; pointer-events: none; }
+.dock-drop-preview { position: absolute; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 14%, transparent); transition: left 0.1s, top 0.1s, width 0.1s, height 0.1s; }
+.dock-drop-marker { position: absolute; width: 2px; margin-left: -1px; background: var(--accent); }
+.dock-ghost { position: absolute; display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-panel); box-shadow: var(--shadow); font-size: 12px; font-weight: 500; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-divider, .dock-divider::after, .dock-tab-close, .dock-drop-preview { transition: none; }
+}

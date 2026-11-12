@@ -21,3 +21,8 @@
 .minimap-node { fill: var(--bg-panel); stroke: var(--text-dim); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 .minimap-node-note { stroke: var(--border-strong); }
 .minimap-view { fill: var(--accent); fill-opacity: 0.14; stroke: var(--accent); stroke-width: 1; pointer-events: none; }
+
+/* 다른 pane이 가리킨 도형(캔버스의 호박색 강조와 같은 색) */
+.minimap-node.is-related { fill: #fde68a; stroke: #d97706; stroke-width: 1.5; }
+.minimap-node.is-dimmed, .minimap-edge.is-dimmed { opacity: 0.45; }
+.minimap-edge.is-related { stroke: #d97706; stroke-width: 2; }

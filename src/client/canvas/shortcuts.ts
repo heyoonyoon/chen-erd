@@ -15,6 +15,7 @@ import type { Room } from '../collab/room';
 import { t, type MessageKey } from '../i18n';
 import { ui } from '../state/ui';
 import { toast } from '../ui/toast';
+import { isInErdScope } from './paneScope';
 import { setZoom, zoomBy, zoomToRect } from './ViewportControls';
 
 // ───────────────────────── 플랫폼 ─────────────────────────
@@ -221,6 +222,20 @@ function handlePlainKey(e: KeyboardEvent, room: Room): boolean {
 }
 
 /**
+ * Ctrl/Cmd+S: 브라우저의 저장 창을 막고 자동 저장된다고 알린다. 방 화면 어디서 눌러도(어느 pane이든, 입력창이든) 같다.
+ * 방 화면은 이것을 window의 capture 단계에서 따로 건다(pane이 키 전파를 막아도, ERD pane이 닫혀 있어도 듣게).
+ */
+export function handleSaveKey(e: KeyboardEvent): boolean {
+  if (e.defaultPrevented) return false;
+  const mod = IS_MAC ? e.metaKey : e.ctrlKey;
+  const otherMod = IS_MAC ? e.ctrlKey : e.metaKey;
+  if (!mod || otherMod || e.altKey || e.shiftKey || e.code !== 'KeyS') return false;
+  e.preventDefault();
+  if (!e.repeat) toast(t('toast.autosave'));
+  return true;
+}
+
+/**
  * keydown 하나를 처리한다. 단축키로 처리했으면 기본 동작을 막고 true를 돌려준다.
  * (useShortcuts가 window keydown에 연결한다. 테스트할 수 있게 따로 뺐다.)
  */
@@ -234,13 +249,11 @@ export function handleShortcutKey(e: KeyboardEvent, room: Room): boolean {
   const otherMod = IS_MAC ? e.ctrlKey : e.metaKey;
 
   // 저장 창은 입력창에 포커스가 있어도 막는다. 문서는 바뀔 때마다 서버에 저장된다.
-  if (mod && !otherMod && !e.altKey && !e.shiftKey && e.code === 'KeyS') {
-    e.preventDefault();
-    if (!e.repeat) toast(t('toast.autosave'));
-    return true;
-  }
+  if (handleSaveKey(e)) return true;
 
   if (isTyping(e.target)) return false;
+  // 다른 pane(관계 모델, SQL 등)에서 누른 키는 그쪽 것이다
+  if (!isInErdScope(e.target)) return false;
 
   let handled: boolean;
   if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.code === 'KeyY') {
@@ -267,7 +280,7 @@ export function handleShortcutKey(e: KeyboardEvent, room: Room): boolean {
 
 /** copy/cut 이벤트. 선택한 도형이 있으면 JSON을 클립보드에 넣고, 없으면 브라우저 기본 동작에 맡긴다. */
 export function handleCopyEvent(e: ClipboardEvent, room: Room, cut = false): boolean {
-  if (e.defaultPrevented || isTyping(e.target)) return false;
+  if (e.defaultPrevented || isTyping(e.target) || !isInErdScope(e.target)) return false;
   // clipboardData가 없으면 복사할 수 없으니 잘라내기로 지우지도 않는다
   if (!e.clipboardData) return false;
   const text = cut ? cutSelectionText(room) : copySelectionText(room);
@@ -279,7 +292,7 @@ export function handleCopyEvent(e: ClipboardEvent, room: Room, cut = false): boo
 
 /** paste 이벤트. 이 도구에서 복사한 내용일 때만 붙여넣는다. */
 export function handlePasteEvent(e: ClipboardEvent, room: Room): boolean {
-  if (e.defaultPrevented || isTyping(e.target)) return false;
+  if (e.defaultPrevented || isTyping(e.target) || !isInErdScope(e.target)) return false;
   const text = e.clipboardData?.getData('text/plain');
   if (!pasteText(room, text)) return false;
   e.preventDefault();
