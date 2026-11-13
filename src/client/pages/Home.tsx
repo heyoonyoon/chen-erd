@@ -57,7 +57,8 @@ export function Home() {
   const [recent, setRecent] = useState(loadRecent);
   const [now, setNow] = useState(() => Date.now());
   /** 새 다이어그램을 어떻게 시작할지 고르는 창 */
-  const [newOpen, setNewOpen] = useState(false);
+  // 열린 안내 창. 지금은 '기존 ERD 옮기기' 버튼만 연다
+  const [newOpen, setNewOpen] = useState<null | 'migrate'>(null);
   const joinRef = useRef<HTMLInputElement>(null);
   const joinId = useId();
   const joinErrorId = useId();
@@ -166,10 +167,18 @@ export function Home() {
                   type="button"
                   className="home-create"
                   data-testid="create-room"
-                  aria-haspopup="dialog"
-                  onClick={() => setNewOpen(true)}
+                  onClick={createRoom}
                 >
                   {t('home.hero.create')}
+                </button>
+                <button
+                  type="button"
+                  className="home-create home-create-alt"
+                  data-testid="migrate-room"
+                  aria-haspopup="dialog"
+                  onClick={() => setNewOpen('migrate')}
+                >
+                  {t('home.migrate.title')}
                 </button>
                 <button type="button" className="home-link" onClick={() => focusField(joinRef.current)}>
                   {t('home.hero.join')}
@@ -286,7 +295,7 @@ export function Home() {
           </section>
         </div>
       </main>
-      {newOpen && <NewDiagramDialog onClose={() => setNewOpen(false)} onBlank={createRoom} />}
+      {newOpen && <NewDiagramDialog start={newOpen} onClose={() => setNewOpen(null)} onBlank={createRoom} />}
       {/* 복사 결과를 알리는 알림. 방 화면에서는 상단 바가 그린다 */}
       <Toaster />
     </div>

@@ -102,7 +102,6 @@ test('관계 모델을 적으면 IE와 SQL이 따라오고, 팀원의 화면에�
   });
   await page.goto('/');
   await page.getByTestId('create-room').click();
-  await page.getByTestId('new-blank').click();
   await page.waitForURL(/\/r\/[a-z0-9]+$/);
   await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
 

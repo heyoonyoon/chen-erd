@@ -55,10 +55,14 @@
 .home-hero-inner { display: grid; grid-template-columns: 440px minmax(0, 1fr); gap: 56px; align-items: center; max-width: var(--h-max); margin: 0 auto; padding: 80px var(--h-pad) 96px; }
 .home-title { font-size: clamp(34px, 3.6vw, 48px); line-height: 1.12; font-weight: 500; letter-spacing: -0.03em; }
 .home-lead { margin-top: 24px; max-width: 36rem; font-size: 18px; line-height: 28px; color: var(--h-text-2); }
-.home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 32px; }
+.home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 32px; }
+.home-actions .home-link { flex-basis: 100%; margin: 14px 0 0; text-align: left; }
 .home-create { height: 48px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--h-text); color: #fff !important; font-size: 15px !important; font-weight: 500 !important; cursor: pointer; transition: background-color 150ms var(--h-ease), transform 150ms var(--h-ease); }
 .home-create:hover { background: #333333; }
 .home-create:active { transform: scale(0.98); }
+/* 두 번째 버튼(기존 ERD 옮기기): 같은 크기의 흰 바탕 버튼 */
+.home-create.home-create-alt { border: 1px solid var(--h-line-strong); background: var(--h-card); color: var(--h-text) !important; }
+.home-create.home-create-alt:hover { background: var(--h-raised); }
 .home-link { padding: 0; border: 0; background: none; color: var(--h-text-2) !important; font-weight: 500 !important; text-decoration: underline; text-decoration-color: var(--h-line-strong); text-underline-offset: 4px; cursor: pointer; transition: color 150ms var(--h-ease); }
 .home-link:hover { color: var(--h-text) !important; }
 /* 처음 열릴 때 제목, 설명, 버튼, 화면 예시가 차례로 올라온다 */

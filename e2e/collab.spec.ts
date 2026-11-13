@@ -52,7 +52,6 @@ test('두 사람이 같은 방에서 동시에 그리고 서로의 커서가 보
   // 철수가 방을 만든다
   await a.page.goto('/');
   await a.page.getByTestId('create-room').click();
-  await a.page.getByTestId('new-blank').click();
   await a.page.waitForURL(/\/r\/[a-z0-9]+$/);
   const url = a.page.url();
   await ready(a.page);
@@ -126,7 +125,6 @@ test('처음 들어오면 이름을 묻고, 입력한 이름이 다른 사람에
   const a = await join(browser, '철수', '#E5484D');
   await a.page.goto('/');
   await a.page.getByTestId('create-room').click();
-  await a.page.getByTestId('new-blank').click();
   await a.page.waitForURL(/\/r\/[a-z0-9]+$/);
   await ready(a.page);
 
@@ -146,7 +144,6 @@ test('끄는 도중 브라우저의 포인터 붙잡기가 풀려도 연결과 �
   const a = await join(browser, '철수', '#E5484D');
   await a.page.goto('/');
   await a.page.getByTestId('create-room').click();
-  await a.page.getByTestId('new-blank').click();
   await a.page.waitForURL(/\/r\/[a-z0-9]+$/);
   await ready(a.page);
   await place(a.page, 'entity', 640, 300, '사용자');

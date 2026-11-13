@@ -47,67 +47,40 @@ afterEach(async () => {
 });
 
 describe('Home', () => {
-  it('새 다이어그램 만들기를 누르면 고르는 창이 뜨고, 빈 다이어그램을 고르면 새 방 주소로 간다', () => {
+  it('첫 화면에 버튼이 둘 있다: 새 다이어그램 만들기는 바로 새 방으로 가고, 기존 ERD 옮기기는 안내 창을 연다', () => {
     render(<Home />);
     const create = screen.getByTestId('create-room');
-    expect(create.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(create.textContent).toBe('새 다이어그램 만들기');
+    expect(create.hasAttribute('aria-haspopup')).toBe(false);
+    expect(screen.getByTestId('migrate-room').textContent).toBe('기존 ERD 옮기기');
     fireEvent.click(create);
-    // 누르자마자 방으로 가지 않는다
-    expect(location.pathname).toBe('/');
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.getAttribute('aria-modal')).toBe('true');
-    expect(dialog.getAttribute('data-testid')).toBe('new-dialog');
-    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent).toBe('새 다이어그램 만들기');
-    expect(screen.getByTestId('new-blank').textContent).toContain('빈 다이어그램으로 시작');
-    expect(screen.getByTestId('new-migrate').textContent).toContain('draw.io, ERDCloud 같은 다른 도구나 손으로 그린 ERD');
-    // 첫 선택지에 포커스가 간다
-    expect(document.activeElement).toBe(screen.getByTestId('new-blank'));
-    fireEvent.click(screen.getByTestId('new-blank'));
+    expect(screen.queryByRole('dialog')).toBeNull();
     const m = /^\/r\/([^/]+)$/.exec(location.pathname);
     expect(m).not.toBeNull();
     expect(ROOM_ID_PATTERN.test(m![1])).toBe(true);
   });
 
-  it('고르는 창은 Esc나 바깥 클릭, 닫기 버튼으로 닫히고 연 버튼으로 포커스가 돌아간다', () => {
+  it('옮기기 안내 창은 Esc나 바깥 클릭, 닫기 버튼으로 닫히고 연 버튼으로 포커스가 돌아간다', () => {
     render(<Home />);
-    const create = screen.getByTestId('create-room');
-    create.focus();
-    fireEvent.click(create);
+    const open = screen.getByTestId('migrate-room');
+    open.focus();
+    fireEvent.click(open);
     expect(document.querySelector('.home.is-locked')).not.toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(document.activeElement).toBe(create);
+    expect(document.activeElement).toBe(open);
     expect(document.querySelector('.home.is-locked')).toBeNull();
 
-    fireEvent.click(create);
-    // 창 안을 누르면 닫히지 않는다
+    fireEvent.click(open);
     fireEvent.mouseDown(screen.getByRole('dialog'));
     expect(screen.queryByRole('dialog')).not.toBeNull();
     fireEvent.mouseDown(screen.getByTestId('new-dialog-overlay'));
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    fireEvent.click(create);
+    fireEvent.click(open);
     fireEvent.click(screen.getByTestId('new-dialog-close'));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location.pathname).toBe('/');
-  });
-
-  it('Tab은 창 안에서만 돈다', () => {
-    render(<Home />);
-    fireEvent.click(screen.getByTestId('create-room'));
-    const close = screen.getByTestId('new-dialog-close');
-    const blank = screen.getByTestId('new-blank');
-    const migrate = screen.getByTestId('new-migrate');
-    // 순서: 닫기, 빈 다이어그램, 옮기기
-    migrate.focus();
-    fireEvent.keyDown(window, { key: 'Tab' });
-    expect(document.activeElement).toBe(close);
-    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(migrate);
-    blank.focus();
-    fireEvent.keyDown(window, { key: 'Tab' });
-    // 중간에서는 브라우저 기본 이동에 맡긴다
-    expect(document.activeElement).toBe(blank);
   });
 
   it('기존 도구에서 옮기기를 고르면 단계 안내가 나오고, 지시문을 복사하고, 뒤로 가거나 빈 다이어그램으로 시작한다', async () => {
@@ -115,8 +88,7 @@ describe('Home', () => {
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     const toasts = () => useToasts.getState().items.map((t) => [t.message, t.kind]);
     render(<Home />);
-    fireEvent.click(screen.getByTestId('create-room'));
-    fireEvent.click(screen.getByTestId('new-migrate'));
+    fireEvent.click(screen.getByTestId('migrate-room'));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.getAttribute('data-testid')).toBe('migrate-dialog');
@@ -157,21 +129,16 @@ describe('Home', () => {
     fireEvent.click(screen.getByTestId('migrate-chat-copy'));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(chat));
 
-    // 뒤로: 고르는 창으로 돌아가고 방금 고른 선택지에 포커스가 간다
+    // 뒤로: 첫 화면 버튼으로 바로 연 안내라 창을 닫는다
     fireEvent.click(screen.getByTestId('migrate-back'));
-    expect(screen.getByRole('dialog').getAttribute('data-testid')).toBe('new-dialog');
-    expect(document.activeElement).toBe(screen.getByTestId('new-migrate'));
-
-    // 다시 들어가 Esc로 닫는다
-    fireEvent.click(screen.getByTestId('new-migrate'));
-    fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location.pathname).toBe('/');
 
-    // 안내에는 빈 다이어그램으로 바로 가는 버튼이 없다
-    fireEvent.click(screen.getByTestId('create-room'));
-    fireEvent.click(screen.getByTestId('new-migrate'));
+    // 다시 열어 Esc로 닫는다. 안내에는 빈 다이어그램으로 바로 가는 버튼이 없다
+    fireEvent.click(screen.getByTestId('migrate-room'));
     expect(screen.queryByTestId('migrate-blank')).toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('초대 링크를 넣고 들어가기를 누르면 그 방으로 간다', () => {

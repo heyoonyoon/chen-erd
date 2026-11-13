@@ -10,7 +10,7 @@ import { useT } from '../i18n';
 import { track } from '../telemetry';
 import { Snippet } from './HomeAi';
 
-type View = 'choose' | 'migrate';
+export type View = 'choose' | 'migrate';
 type Way = 'cli' | 'chat';
 
 const WAYS: Way[] = ['cli', 'chat'];
@@ -24,9 +24,14 @@ function reducedMotion(): boolean {
 
 const FOCUSABLE = 'button:not([disabled]), [href], input, [tabindex]:not([tabindex="-1"])';
 
-export function NewDiagramDialog({ onClose, onBlank }: { onClose: () => void; onBlank: () => void }) {
+export function NewDiagramDialog({ onClose, onBlank, start = 'choose' }: { onClose: () => void; onBlank: () => void; start?: View }) {
   const t = useT();
-  const [view, setView] = useState<View>('choose');
+  const [view, setView] = useState<View>(start);
+  // 첫 화면의 '기존 ERD 옮기기' 버튼으로 바로 안내를 열었으면 그것도 한 번 센다
+  useEffect(() => {
+    if (start === 'migrate') track('migrate_open');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [way, setWay] = useState<Way>('cli');
   const [closing, setClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -66,8 +71,8 @@ export function NewDiagramDialog({ onClose, onBlank }: { onClose: () => void; on
     const prev = focusedView.current;
     focusedView.current = view;
     if (prev === view) return;
-    if (prev === null) blankRef.current?.focus();
-    else if (view === 'migrate') titleRef.current?.focus();
+    if (view === 'migrate') titleRef.current?.focus();
+    else if (prev === null) blankRef.current?.focus();
     else migrateRef.current?.focus();
   }, [view]);
 
@@ -262,7 +267,7 @@ export function NewDiagramDialog({ onClose, onBlank }: { onClose: () => void; on
               </ol>
             </div>
             <div className="home-dialog-foot">
-              <button type="button" className="home-btn" data-testid="migrate-back" onClick={() => setView('choose')}>
+              <button type="button" className="home-btn" data-testid="migrate-back" onClick={() => (start === 'migrate' ? close() : setView('choose'))}>
                 {t('home.migrate.back')}
               </button>
             </div>
