@@ -80,12 +80,12 @@ afterEach(() => {
 });
 
 describe('방 화면의 pane 배치', () => {
-  it('처음에는 기본 배치(ERD 옆 위에 관계 모델, 아래에 IE와 SQL 탭)를 보이고 캔버스 단축키를 건다', async () => {
+  it('처음에는 기본 배치(ERD 옆 한 그룹에 관계 모델, SQL, IE 탭, 관계 모델 보임)를 보이고 캔버스 단축키를 건다', async () => {
     mount();
     expect(await screen.findByTestId('pane-relational')).toBeTruthy();
     expect(isShown('erd')).toBe(true);
     expect(isShown('relational')).toBe(true);
-    expect(isShown('ie')).toBe(true);
+    expect(isShown('ie')).toBe(false);
     expect(isShown('sql')).toBe(false);
     expect(tab('relational').textContent).toContain('관계 모델');
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(4);
@@ -192,13 +192,13 @@ describe('방 화면의 pane 배치', () => {
     fireEvent.click(tab('sql'));
     expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).toBeNull();
     act(() => vi.advanceTimersByTime(350));
-    expect(JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)!).root.children[1].children[1].active).toBe('sql');
+    expect(JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)!).root.children[1].active).toBe('sql');
 
     fireEvent.click(tab('ie'));
     act(() => {
       window.dispatchEvent(new Event('pagehide'));
     });
-    expect(JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)!).root.children[1].children[1].active).toBe('ie');
+    expect(JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)!).root.children[1].active).toBe('ie');
   });
 
   it('Ctrl/Cmd+S는 키 전파를 막는 pane 안에서도, ERD pane이 닫혀 있어도 브라우저 저장 창을 막는다', async () => {

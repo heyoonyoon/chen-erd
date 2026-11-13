@@ -406,7 +406,7 @@ export class StatsCollector {
     const now = this.now();
     this.rollover(now);
     const user = this.hashUser(a);
-    const inRoom = event !== 'home_view' && event !== 'create_click';
+    const inRoom = event !== 'home_view' && event !== 'create_click' && event !== 'migrate_open';
     this.touchUser(user, now, inRoom);
     if (inRoom) this.addSet('app', user);
 
@@ -426,6 +426,9 @@ export class StatsCollector {
       }
       case 'create_click':
         this.addSet('f:create', user);
+        break;
+      case 'migrate_open':
+        this.addSet('u:migrate', user);
         break;
       case 'shape_add':
         this.addSet('f:shape', user);

@@ -47,12 +47,131 @@ afterEach(async () => {
 });
 
 describe('Home', () => {
-  it('새 다이어그램 만들기를 누르면 새 방 주소로 간다', () => {
+  it('새 다이어그램 만들기를 누르면 고르는 창이 뜨고, 빈 다이어그램을 고르면 새 방 주소로 간다', () => {
     render(<Home />);
-    fireEvent.click(screen.getByTestId('create-room'));
+    const create = screen.getByTestId('create-room');
+    expect(create.getAttribute('aria-haspopup')).toBe('dialog');
+    fireEvent.click(create);
+    // 누르자마자 방으로 가지 않는다
+    expect(location.pathname).toBe('/');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('data-testid')).toBe('new-dialog');
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent).toBe('새 다이어그램 만들기');
+    expect(screen.getByTestId('new-blank').textContent).toContain('빈 다이어그램으로 시작');
+    expect(screen.getByTestId('new-migrate').textContent).toContain('draw.io, ERDCloud 같은 다른 도구나 손으로 그린 ERD');
+    // 첫 선택지에 포커스가 간다
+    expect(document.activeElement).toBe(screen.getByTestId('new-blank'));
+    fireEvent.click(screen.getByTestId('new-blank'));
     const m = /^\/r\/([^/]+)$/.exec(location.pathname);
     expect(m).not.toBeNull();
     expect(ROOM_ID_PATTERN.test(m![1])).toBe(true);
+  });
+
+  it('고르는 창은 Esc나 바깥 클릭, 닫기 버튼으로 닫히고 연 버튼으로 포커스가 돌아간다', () => {
+    render(<Home />);
+    const create = screen.getByTestId('create-room');
+    create.focus();
+    fireEvent.click(create);
+    expect(document.querySelector('.home.is-locked')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(create);
+    expect(document.querySelector('.home.is-locked')).toBeNull();
+
+    fireEvent.click(create);
+    // 창 안을 누르면 닫히지 않는다
+    fireEvent.mouseDown(screen.getByRole('dialog'));
+    expect(screen.queryByRole('dialog')).not.toBeNull();
+    fireEvent.mouseDown(screen.getByTestId('new-dialog-overlay'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(create);
+    fireEvent.click(screen.getByTestId('new-dialog-close'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(location.pathname).toBe('/');
+  });
+
+  it('Tab은 창 안에서만 돈다', () => {
+    render(<Home />);
+    fireEvent.click(screen.getByTestId('create-room'));
+    const close = screen.getByTestId('new-dialog-close');
+    const blank = screen.getByTestId('new-blank');
+    const migrate = screen.getByTestId('new-migrate');
+    // 순서: 닫기, 빈 다이어그램, 옮기기
+    migrate.focus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(migrate);
+    blank.focus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    // 중간에서는 브라우저 기본 이동에 맡긴다
+    expect(document.activeElement).toBe(blank);
+  });
+
+  it('기존 도구에서 옮기기를 고르면 단계 안내가 나오고, 지시문을 복사하고, 뒤로 가거나 빈 다이어그램으로 시작한다', async () => {
+    const writeText = vi.fn(async (_t: string) => undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const toasts = () => useToasts.getState().items.map((t) => [t.message, t.kind]);
+    render(<Home />);
+    fireEvent.click(screen.getByTestId('create-room'));
+    fireEvent.click(screen.getByTestId('new-migrate'));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('data-testid')).toBe('migrate-dialog');
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent).toBe('기존 ERD 옮기기');
+    expect([...dialog.querySelectorAll('.home-step-title')].map((el) => el.textContent)).toEqual([
+      '기존 ERD를 이미지로 저장합니다',
+      'AI에 이미지를 첨부하고 지시문을 붙여 넣습니다',
+      'AI가 알려 준 주소로 들어갑니다',
+    ]);
+    // 3단계에는 설명 대신 시연 영상이 있고, 누르기 전에는 재생하지 않는다
+    const video = screen.getByTestId('migrate-video') as HTMLVideoElement;
+    expect(video.closest('.home-step')!.textContent).toContain('AI가 알려 준 주소로 들어갑니다');
+    expect(video.hasAttribute('autoplay')).toBe(false);
+    expect(video.hasAttribute('controls')).toBe(true);
+    // 제목으로 포커스를 옮겨 읽기 도구가 바뀐 화면을 읽게 한다
+    expect(document.activeElement!.textContent).toBe('기존 ERD 옮기기');
+
+    // 명령을 실행하는 AI: 첫 화면 AI 구역과 같은 지시문
+    expect(screen.getByTestId('migrate-tab-cli').getAttribute('aria-selected')).toBe('true');
+    const cli = screen.getByTestId('migrate-cli-text').textContent!;
+    expect(cli).toContain('npx -y modelll new model.mdl');
+    fireEvent.click(screen.getByTestId('migrate-cli-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['클립보드에 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith(cli);
+
+    // 대화형 AI: 원격 MCP 주소와 대화창에 붙일 짧은 지시문. 오른쪽 화살표로도 옮겨 간다
+    fireEvent.keyDown(screen.getByTestId('migrate-tab-cli'), { key: 'ArrowRight' });
+    expect(screen.getByTestId('migrate-tab-chat').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByTestId('migrate-tab-chat'));
+    expect(screen.queryByTestId('migrate-panel-cli')).toBeNull();
+    expect(screen.getByTestId('migrate-panel-chat').textContent).toContain('원격 MCP 서버나 커넥터');
+    expect(screen.getByTestId('migrate-mcp-text').textContent).toBe(`${location.origin}/mcp`);
+    fireEvent.click(screen.getByTestId('migrate-mcp-copy'));
+    await waitFor(() => expect(toasts()).toContainEqual(['주소를 복사했습니다', 'info']));
+    expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/mcp`);
+    const chat = '첨부한 ERD 이미지를 modelll MCP로 그대로 옮겨서 새 다이어그램을 만들고 주소를 알려 주세요.';
+    expect(screen.getByTestId('migrate-chat-text').textContent).toBe(chat);
+    fireEvent.click(screen.getByTestId('migrate-chat-copy'));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(chat));
+
+    // 뒤로: 고르는 창으로 돌아가고 방금 고른 선택지에 포커스가 간다
+    fireEvent.click(screen.getByTestId('migrate-back'));
+    expect(screen.getByRole('dialog').getAttribute('data-testid')).toBe('new-dialog');
+    expect(document.activeElement).toBe(screen.getByTestId('new-migrate'));
+
+    // 다시 들어가 Esc로 닫는다
+    fireEvent.click(screen.getByTestId('new-migrate'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(location.pathname).toBe('/');
+
+    // 안내에는 빈 다이어그램으로 바로 가는 버튼이 없다
+    fireEvent.click(screen.getByTestId('create-room'));
+    fireEvent.click(screen.getByTestId('new-migrate'));
+    expect(screen.queryByTestId('migrate-blank')).toBeNull();
   });
 
   it('초대 링크를 넣고 들어가기를 누르면 그 방으로 간다', () => {
@@ -464,8 +583,8 @@ describe('Home: 제품 이름과 첫 화면의 글자', () => {
     // 두 방법을 CLI와 MCP라는 이름으로 나란히 부른다. 로컬 MCP 서버를 추가하는 카드는 없다
     expect(screen.getByTestId('home-ai').querySelector('h3')!.textContent).toBe('AI를 연결하는 두 가지 방법');
     const ways = [...document.querySelectorAll('.home-way')];
-    expect(ways.map((el) => el.getAttribute('data-testid'))).toEqual(['home-way-cli', 'home-way-mcp']);
-    expect(ways.map((el) => el.querySelector('h4')!.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기']);
+    expect(ways.map((el) => el.getAttribute('data-testid'))).toEqual(['home-way-cli', 'home-way-mcp', 'home-migrate']);
+    expect(ways.map((el) => el.querySelector('h4')!.textContent)).toEqual(['CLI로 사용하기', 'MCP로 연결하기', '다른 도구의 ERD를 그대로 옮기기']);
     expect(screen.getByTestId('home-way-cli').textContent).toContain('npx -y modelll 명령으로');
     expect(screen.getByTestId('home-way-mcp').textContent).toContain('claude.ai, ChatGPT, Cursor처럼 원격 MCP 서버를 지원하는 AI 도구');
     expect(screen.getByTestId('home-way-mcp').textContent).toContain('원격 MCP 서버나 커넥터로 추가합니다');

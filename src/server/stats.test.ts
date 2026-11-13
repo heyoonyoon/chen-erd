@@ -51,10 +51,12 @@ describe('서비스 지표 모으기', () => {
     for (let i = 0; i < 5; i++) s.clientEvent({ a: id(1), e: 'home_view' }, UA);
     s.clientEvent({ a: id(2), e: 'home_view' }, UA);
     s.clientEvent({ a: id(2), e: 'create_click' }, UA);
+    expect(s.clientEvent({ a: id(2), e: 'migrate_open' }, UA)).toBe(true);
     const t = s.today();
     expect(t.u.visitors).toBe(2);
     expect(t.u.home).toBe(2);
     expect(t.u['f:create']).toBe(1);
+    expect(t.u['u:migrate']).toBe(1);
     expect(t.u.new).toBe(2);
     expect(t.u.returning).toBe(0);
   });

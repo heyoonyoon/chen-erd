@@ -239,7 +239,7 @@ function AiFigure() {
 }
 
 /** 복사할 글 한 토막과 복사 버튼. 복사 결과는 화면 아래의 알림으로 알린다 */
-function Snippet(props: { text: string; copyLabel: string; doneKey: MessageKey; testId: string }) {
+export function Snippet(props: { text: string; copyLabel: string; doneKey: MessageKey; testId: string }) {
   const t = useT();
   const copy = async () => {
     if (await copyText(props.text)) toast(t(props.doneKey));
@@ -296,6 +296,15 @@ export function HomeAi() {
           <Snippet text={remoteMcpUrl()} copyLabel={t('ai.mcp.copy')} doneKey="toast.urlCopied" testId="home-mcp" />
         </Reveal>
       </div>
+
+      {/* 다른 도구에서 그린 ERD를 옮기는 법: 그림을 AI에 첨부하고 지시문을 붙이면 AI가 모델 글로 옮겨 방을 만든다 */}
+      <Reveal className="home-way home-migrate" data-testid="home-migrate">
+        <div className="home-migrate-text">
+          <h4 className="home-way-title">{t('home.ai.migrate.title')}</h4>
+          <p className="home-way-body">{t('home.ai.migrate.body')}</p>
+        </div>
+        <Snippet text={t('home.ai.migrate.prompt')} copyLabel={t('ai.cli.copy')} doneKey="toast.clipboardCopied" testId="home-migrate" />
+      </Reveal>
     </section>
   );
 }

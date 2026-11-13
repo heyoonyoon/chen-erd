@@ -277,6 +277,7 @@ function renderUsage(rows, s) {
   $('usage').innerHTML =
     '<div class="box"><h3>기능 사용</h3><p class="desc">기간 동안 날마다 센 고유 사람(또는 방) 수의 합</p><table>' +
     tr('관계 모델을 쓴 방', '관계 모델 글이 고쳐진 방(사람과 AI)', u('r:rel'), '열린 방의 ' + pct(u('r:rel'), opened)) +
+    tr('옮기기 안내 열기', '새 다이어그램 창에서 기존 도구에서 옮기기를 고른 사람', u('u:migrate')) +
     tr('검증 패널 열기', '검증 패널을 연 사람', u('u:validate')) +
     tr('표기 안내 열기', '표기법 안내를 연 사람', u('u:legend')) +
     tr('도움말 열기', '도움말을 연 사람', u('u:help')) +

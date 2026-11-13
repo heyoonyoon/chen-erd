@@ -16,6 +16,7 @@ import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
 import { HomeAi } from './HomeAi';
 import { HomeFacts } from './HomeFeatures';
+import { NewDiagramDialog } from './HomeNewDialog';
 import { HomeNotation } from './HomeNotation';
 import { HomePreview } from './HomePreview';
 import { HomeStages } from './HomeStages';
@@ -55,6 +56,8 @@ export function Home() {
   const [joinError, setJoinError] = useState(false);
   const [recent, setRecent] = useState(loadRecent);
   const [now, setNow] = useState(() => Date.now());
+  /** 새 다이어그램을 어떻게 시작할지 고르는 창 */
+  const [newOpen, setNewOpen] = useState(false);
   const joinRef = useRef<HTMLInputElement>(null);
   const joinId = useId();
   const joinErrorId = useId();
@@ -129,7 +132,7 @@ export function Home() {
   };
 
   return (
-    <div className="home">
+    <div className={newOpen ? 'home is-locked' : 'home'}>
       <nav className="home-nav" aria-label={t('home.nav.label')}>
         <div className="home-nav-inner">
           <div className="home-nav-start">
@@ -159,7 +162,13 @@ export function Home() {
               </h1>
               <p className="home-lead">{t('home.hero.lead')}</p>
               <div className="home-actions">
-                <button type="button" className="home-create" data-testid="create-room" onClick={createRoom}>
+                <button
+                  type="button"
+                  className="home-create"
+                  data-testid="create-room"
+                  aria-haspopup="dialog"
+                  onClick={() => setNewOpen(true)}
+                >
                   {t('home.hero.create')}
                 </button>
                 <button type="button" className="home-link" onClick={() => focusField(joinRef.current)}>
@@ -277,6 +286,7 @@ export function Home() {
           </section>
         </div>
       </main>
+      {newOpen && <NewDiagramDialog onClose={() => setNewOpen(false)} onBlank={createRoom} />}
       {/* 복사 결과를 알리는 알림. 방 화면에서는 상단 바가 그린다 */}
       <Toaster />
     </div>

@@ -58,7 +58,7 @@ export type DropEdge = 'center' | 'left' | 'right' | 'top' | 'bottom';
  * (빈 그룹 없음, 자식이 하나인 split 없음, 같은 방향 split의 중첩 없음, sizes 합 1).
  *
  *   defaultLayout(): LayoutState
- *       왼쪽 ERD(넓게), 오른쪽 위 그룹에 relational, 오른쪽 아래 그룹에 ie, sql 탭(ie가 보임)
+ *       왼쪽 ERD(넓게), 오른쪽 한 그룹에 relational, sql, ie 탭(relational이 보임)
  *   movePane(state, pane, targetGroupId, edge: DropEdge, index?: number): LayoutState
  *   openPane(state, pane): LayoutState        이미 열려 있으면 그 탭을 보이게만 한다
  *   closePane(state, pane): LayoutState

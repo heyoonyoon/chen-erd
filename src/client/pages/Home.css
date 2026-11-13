@@ -297,6 +297,11 @@
 .home-way { display: flex; flex-direction: column; min-width: 0; padding: 32px; border: 1px solid var(--h-line-strong); border-radius: 16px; background: var(--h-card); }
 .home-way-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
 .home-way-body { margin: 10px 0 24px; font-size: 15px; line-height: 24px; color: var(--h-text-2); }
+/* 기존 ERD 옮기기: 기능 카드 아래 넓은 카드 하나. 글은 왼쪽, 복사할 지시문은 오른쪽 */
+.home-migrate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 32px; align-items: center; margin-top: 24px; }
+.home-migrate .home-way-body { margin-bottom: 0; }
+.home-migrate .home-snippet { margin-top: 0; }
+@media (max-width: 900px) { .home-migrate { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
 /* 복사할 글은 위 AI 터미널과 같은 어두운 창에 담아 눈에 띄게 한다 */
 .home-snippet { display: flex; align-items: flex-start; gap: 8px; margin-top: auto; padding: 12px 12px 12px 16px; border-radius: 10px; background: #171717; }
 .home-snippet-text { flex: 1 1 auto; min-width: 0; padding: 4px 0; font-family: var(--font-mono); font-size: 13px; line-height: 21px; color: #f5f5f5; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -419,6 +424,47 @@
 .home-sheet-row.is-in .home-ie-head { opacity: 1; transition: opacity 400ms var(--h-ease) calc(var(--i) * 110ms + 500ms); }
 .home-sheet-row.is-in .home-sheet-ul { background-size: 100% 1.5px; transition: background-size 500ms var(--h-ease-draw) calc(var(--i) * 110ms + var(--l) * 120ms + 300ms); }
 
+/* ── 새 다이어그램 창: 빈 다이어그램과 옮기기 중 고르기, 옮기기 안내 ── */
+.home.is-locked { overflow: hidden; }
+.home-dialog-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(23, 23, 23, 0.4); animation: home-fade 180ms var(--h-ease) both; }
+.home-dialog { display: flex; flex-direction: column; width: 600px; max-width: 100%; max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); border: 1px solid var(--h-line-strong); border-radius: 16px; background: var(--h-card); box-shadow: 0 24px 64px rgba(23, 23, 23, 0.16); outline: none; animation: home-dialog-in 220ms var(--h-ease) both; }
+.home-dialog.is-wide { width: 680px; }
+.home-dialog-overlay.is-closing { animation: home-dialog-fade-out 140ms ease-in both; }
+.home-dialog-overlay.is-closing .home-dialog { animation: home-dialog-out 140ms ease-in both; }
+@keyframes home-dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes home-dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.97); } }
+@keyframes home-dialog-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.home-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 0; }
+.home-dialog-title { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; outline: none; }
+.home-dialog-lead { margin-top: 4px; font-size: 14px; line-height: 22px; color: var(--h-text-2); }
+.home-dialog-close { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; margin: -4px -8px 0 0; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--h-muted) !important; cursor: pointer; transition: background-color 150ms var(--h-ease), color 150ms var(--h-ease); }
+.home-dialog-close:hover { background: var(--h-raised); color: var(--h-text) !important; }
+/* 내용이 화면보다 길면 이 칸 안에서만 스크롤한다 */
+.home-dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 24px; }
+.home-dialog-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 16px 24px; border-top: 1px solid var(--h-line); }
+/* 두 선택지 */
+.home-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.home-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 20px; border: 1px solid var(--h-line-strong); border-radius: 12px; background: var(--h-card); text-align: left; cursor: pointer; transition: background-color 150ms var(--h-ease), transform 150ms var(--h-ease); }
+.home-choice:hover { background: var(--h-raised); }
+.home-choice:active { transform: scale(0.99); }
+.home-choice-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-bottom: 12px; border-radius: 10px; background: var(--h-raised); color: var(--h-text); }
+.home-choice:hover .home-choice-icon { background: var(--h-card); }
+.home-choice-title { font-size: 16px; line-height: 24px; font-weight: 600; }
+.home-choice-body { font-size: 13px; line-height: 20px; color: var(--h-text-2); }
+/* 옮기기 단계. 번호는 목록 번호를 동그라미에 담아 그린다 */
+.home-steps { display: flex; flex-direction: column; gap: 24px; margin: 0; padding: 0; list-style: none; counter-reset: home-step; }
+.home-step { position: relative; min-width: 0; padding-left: 40px; counter-increment: home-step; }
+.home-step::before { content: counter(home-step); position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--h-text); color: #fff; font-size: 13px; font-weight: 600; line-height: 1; }
+.home-step-title { font-size: 15px; line-height: 26px; font-weight: 600; }
+.home-step-body { margin-top: 4px; font-size: 14px; line-height: 22px; color: var(--h-text-2); }
+.home-step .home-snippet { margin-top: 12px; }
+.home-tabs { display: flex; gap: 4px; margin-top: 12px; padding: 4px; border-radius: 10px; background: var(--h-raised); }
+.home .home-tab { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 7px; background: none; color: var(--h-text-2); font-size: 13px; line-height: 18px; font-weight: 500; cursor: pointer; transition: background-color 150ms var(--h-ease), color 150ms var(--h-ease); }
+.home .home-tab:hover { color: var(--h-text); }
+.home .home-tab[aria-selected='true'] { background: var(--h-card); color: var(--h-text); box-shadow: 0 1px 2px rgba(23, 23, 23, 0.08); }
+.home-tab-panel { margin-top: 12px; }
+.home-tab-panel > .home-step-body:not(:first-child) { margin-top: 16px; }
+
 /* ── 좁은 화면 ── */
 @media (max-width: 1080px) {
   .home-hero-inner { grid-template-columns: minmax(0, 1fr); gap: 48px; padding: 64px var(--h-pad); }
@@ -470,6 +516,16 @@
   .home .home-lang .language-select-value { display: none; }
   .home-nav-start { gap: 12px; }
   .home-recent-time { min-width: 0; }
+  /* 새 다이어그램 창은 화면 폭을 거의 다 쓰고 선택지는 세로로 쌓는다 */
+  .home-dialog-overlay { padding: 12px; }
+  .home-dialog { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .home-dialog-head { padding: 20px 20px 0; }
+  .home-dialog-body { padding: 16px 20px 20px; }
+  .home-dialog-foot { padding: 12px 20px; }
+  .home-choices { grid-template-columns: minmax(0, 1fr); }
+  .home-choice { padding: 16px; }
+  .home-choice-icon { margin-bottom: 8px; }
+  .home-step { padding-left: 36px; }
 }
 /* 움직임을 줄이도록 설정했으면 처음부터 완성된 화면을 보여 준다 */
 @media (prefers-reduced-motion: reduce) {
@@ -482,4 +538,9 @@
   .home-story-goo { display: none; }
   .home-story.is-pinned .home-story-stage.is-active .home-story-text { animation: none; }
   .home-create, .home-btn, .home-lang .language-select-button, .home-gh, .home-recent-item, .home-snippet-copy, .home-story-play { transition: none; }
+  .home-dialog-overlay, .home-dialog, .home-dialog-overlay.is-closing, .home-dialog-overlay.is-closing .home-dialog { animation: none; }
+  .home-choice, .home .home-tab, .home-dialog-close { transition: none; }
 }
+
+/* 옮기기 안내 창의 시연 영상 */
+.home-migrate-video { display: block; width: 100%; aspect-ratio: 1280 / 760; margin: 10px 0 0; border: 1px solid var(--h-line-strong); border-radius: 10px; background: var(--h-raised); object-fit: contain; }

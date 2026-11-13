@@ -38,16 +38,7 @@ export function defaultLayout(): LayoutState {
       sizes: [0.55, 0.45],
       children: [
         { type: 'group', id: 'g1', panes: ['erd'], active: 'erd' },
-        {
-          type: 'split',
-          id: 's2',
-          direction: 'column',
-          sizes: [0.5, 0.5],
-          children: [
-            { type: 'group', id: 'g2', panes: ['relational'], active: 'relational' },
-            { type: 'group', id: 'g3', panes: ['ie', 'sql'], active: 'ie' },
-          ],
-        },
+        { type: 'group', id: 'g2', panes: ['relational', 'sql', 'ie'], active: 'relational' },
       ],
     },
     maximized: null,

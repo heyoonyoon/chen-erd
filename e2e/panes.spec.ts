@@ -70,12 +70,43 @@ const underlined = (page: Page) => page.locator('.rel-editor-marks .rel-ul');
 test('관계 모델을 적으면 IE와 SQL이 따라오고, 팀원의 화면에도 바로 나타난다', async ({ browser }) => {
   const a = await join(browser, 'e2e-panes-a', '철수', '#E5484D');
   const page = a.page;
+  // 기본 배치는 관계 모델, SQL, IE가 한 그룹의 탭이다. 여기서는 글과 IE를 함께 보려고 오른쪽을 위아래로 나눈 배치로 시작한다
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'modelll.layout',
+      JSON.stringify({
+        version: 1,
+        maximized: null,
+        lastGroup: 'g1',
+        root: {
+          type: 'split',
+          id: 's1',
+          direction: 'row',
+          sizes: [0.55, 0.45],
+          children: [
+            { type: 'group', id: 'g1', panes: ['erd'], active: 'erd' },
+            {
+              type: 'split',
+              id: 's2',
+              direction: 'column',
+              sizes: [0.5, 0.5],
+              children: [
+                { type: 'group', id: 'g2', panes: ['relational'], active: 'relational' },
+                { type: 'group', id: 'g3', panes: ['ie', 'sql'], active: 'ie' },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+  });
   await page.goto('/');
   await page.getByTestId('create-room').click();
+  await page.getByTestId('new-blank').click();
   await page.waitForURL(/\/r\/[a-z0-9]+$/);
   await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
 
-  // 기본 배치: 왼쪽 ERD, 오른쪽 위 관계 모델, 오른쪽 아래 IE(SQL은 같은 그룹의 탭)
+  // 이 배치: 왼쪽 ERD, 오른쪽 위 관계 모델, 오른쪽 아래 IE(SQL은 같은 그룹의 탭)
   const erdPane = page.locator('.dock-content > [data-pane="erd"]');
   const relPane = page.locator('.dock-content > [data-pane="relational"]');
   const iePane = page.locator('.dock-content > [data-pane="ie"]');

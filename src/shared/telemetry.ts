@@ -17,6 +17,8 @@ export const TELEMETRY_EVENTS = [
   'room_enter',
   /** 첫 화면의 새 다이어그램 만들기 */
   'create_click',
+  /** 새 다이어그램 창에서 기존 도구에서 옮기기 안내를 열었다 */
+  'migrate_open',
   /** 이 방에서 처음으로 도형을 추가했다 */
   'shape_add',
   /** 관계 모델 글을 고쳤다 */
