@@ -4,7 +4,14 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	# HTTPS만 쓰도록 브라우저에 알리고, 서버 종류는 알리지 않는다
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
 	# 일반 요청과 웹소켓(/ws/<roomId>)을 모두 app으로 넘긴다. 웹소켓 업그레이드는 따로 설정하지 않아도 된다.
+	# 관리자 페이지(app:9000)로는 절대 넘기지 않는다. 그 포트는 SSH 터널로만 본다
 	reverse_proxy app:8787
 }
 

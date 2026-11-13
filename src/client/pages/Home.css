@@ -127,7 +127,7 @@
 .home-pv-cursors { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
 /* 누른 자리에 잠깐 퍼지는 고리. 상태가 바뀌는 순간마다 누가 눌렀는지 보인다 */
 .home-pv-ring { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px solid; border-radius: 50%; }
-.home-pv-hcursor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.home-pv-hcursor { position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; }
 .home-pv-hcursor > svg { position: absolute; left: -1px; top: -1px; }
 .home-pv-hcursor > span { position: absolute; left: 11px; top: 14px; padding: 0 6px; border-radius: 6px; border-top-left-radius: 3px; color: #fff; font-size: 10px; line-height: 16px; font-weight: 500; white-space: nowrap; }
 /* 관계 모델 편집기: 밑줄 버튼과 줄 번호 */

@@ -21,7 +21,7 @@ import { handleSaveKey, useShortcuts } from '../canvas/shortcuts';
 import { RoomContext, useBlockedReason, useRoom, useTitle } from '../collab/hooks';
 import { createRoom, type Room } from '../collab/room';
 import { APP_NAME, useT } from '../i18n';
-import { getIdentity, rememberRoom } from '../identity';
+import { getIdentity, getRecentRooms, rememberRoom } from '../identity';
 import { DockLayout } from '../layout/DockLayout';
 import { loadLayout, openPane, openPanes, saveLayout } from '../layout/model';
 import { PaneMenu } from '../layout/PaneMenu';
@@ -31,6 +31,8 @@ import { PaneIcon, paneTitleKey } from '../relational/paneMeta';
 import { useRelPanes } from '../relational/paneStore';
 import { navigate } from '../router';
 import { useUi } from '../state/ui';
+import { entryKind, useRoomTelemetry } from '../telemetry';
+import type { EntryKind } from '../../shared/telemetry';
 import { ContextMenu } from '../ui/ContextMenu';
 import { TopBar } from '../ui/TopBar';
 import './RoomPage.css';
@@ -50,6 +52,8 @@ type SetLayout = Dispatch<SetStateAction<LayoutState>>;
 
 export function RoomPage({ roomId }: { roomId: string }) {
   const [room, setRoom] = useState<Room | null>(null);
+  // 지표: 어떻게 들어왔는지. 최근 목록에 이 방을 넣기 전에 본다
+  const [entry] = useState<EntryKind>(() => entryKind(roomId, getRecentRooms().some((r) => r.id === roomId)));
 
   useEffect(() => {
     useUi.getState().reset();
@@ -66,16 +70,17 @@ export function RoomPage({ roomId }: { roomId: string }) {
   if (!room) return null;
   return (
     <RoomContext.Provider value={room}>
-      <RoomLayout />
+      <RoomLayout entry={entry} />
     </RoomContext.Provider>
   );
 }
 
-export function RoomLayout() {
+export function RoomLayout({ entry = 'home' }: { entry?: EntryKind }) {
   const room = useRoomSync();
   const t = useT();
   const narrow = useMediaQuery(NARROW_QUERY);
   const [layout, setLayout] = useRoomLayout();
+  useRoomTelemetry(room.id, room.doc, entry, layout);
   const erdOpen = openPanes(layout).includes('erd');
 
   useErdFollow(setLayout);

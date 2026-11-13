@@ -31,7 +31,9 @@ describe('dialectType, quoteIdentifier', () => {
     expect(dialectType('geometry', 'postgresql')).toBe('geometry');
     expect(quoteIdentifier('학생', 'mysql')).toBe('`학생`');
     expect(quoteIdentifier('학생', 'postgresql')).toBe('"학생"');
-    expect(quoteIdentifier('a"b', 'oracle')).toBe('"a""b"');
+    // Oracle은 따옴표 식별자 안에 큰따옴표를 받지 않는다(두 번 적기도 안 된다). 빼고 묶는다
+    expect(quoteIdentifier('a"b', 'oracle')).toBe('"ab"');
+    expect(quoteIdentifier('a"b', 'postgresql')).toBe('"a""b"');
     expect(quoteIdentifier('a`b', 'mysql')).toBe('`a``b`');
   });
 });
@@ -143,5 +145,91 @@ describe('toSql', () => {
     expect(r.sql).toContain('CONSTRAINT "강의계획_fk1" FOREIGN KEY ("x", "y") REFERENCES "분반" ("번호", "과목")');
     const keyOrder = sql('분반(_과목_, _번호_)\n강의계획(_x_, _y_)\nForeign Key (x, y) references 분반');
     expect(keyOrder.sql).toContain('CONSTRAINT "강의계획_fk1" FOREIGN KEY ("x", "y") REFERENCES "분반" ("과목", "번호")');
+  });
+});
+
+
+/**
+ * 만든 SQL을 DBMS처럼 낱말로 나눠, 따옴표 식별자와 문자열과 주석 밖에 남는 글자만 돌려준다.
+ * PostgreSQL은 줄 주석을 \n과 \r에서 끝낸다(더 엄격한 쪽을 따른다).
+ */
+function outsideQuotes(text: string, dialect: SqlDialect): string {
+  let out = '';
+  let i = 0;
+  const idQuote = dialect === 'mysql' ? '`' : '"';
+  while (i < text.length) {
+    const c = text[i];
+    if (c === idQuote || c === "'") {
+      i++;
+      for (;;) {
+        if (i >= text.length) throw new Error('닫히지 않은 따옴표');
+        if (text[i] === c) {
+          // Oracle 식별자는 두 번 적기를 받지 않는다
+          if (text[i + 1] === c && !(dialect === 'oracle' && c === '"')) {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      out += ' Q ';
+      continue;
+    }
+    if (c === '-' && text[i + 1] === '-') {
+      while (i < text.length && text[i] !== '\n' && text[i] !== '\r') i++;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      if (end < 0) throw new Error('닫히지 않은 주석');
+      i = end + 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+describe('SQL 인젝션: 사람이 적은 이름과 타입이 SQL을 깨뜨리지 못한다', () => {
+  const nasty = ['"; DROP TABLE x; --', 'a`; DROP TABLE x; --', "a'); DROP TABLE x; --", 'a\\"b', 'a\rDROP TABLE x; --', 'a */ DROP TABLE x; /*', 'a DROP TABLE x;'];
+  /** 글 안에서 따옴표 이름으로 적는다(" 와 \ 는 백슬래시로) */
+  const q = (name: string) => `"${name.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+
+  for (const dialect of ['postgresql', 'mysql', 'oracle'] as const) {
+    it(`${dialect}: 테이블과 컬럼 이름`, () => {
+      for (const name of nasty) {
+        const text = `${q(name)}(_id_, ${q(name)}, other)\nRef(_rid_, fk)\nfk -> ${q(name)}\nBad(_k_, z)\nz -> ${q(name + 'missing')}`;
+        const out = sql(text, {}, dialect, { listMissingTypes: true, title: name }).sql;
+        const bare = outsideQuotes(out, dialect);
+        expect(bare, `${dialect} ${JSON.stringify(name)}\n${out}`).not.toMatch(/DROP/i);
+        // 세미콜론은 CREATE TABLE 문의 끝에만 있다
+        expect((bare.match(/;/g) ?? []).length, out).toBe((out.match(/^CREATE TABLE /gm) ?? []).length + (out.match(/^ALTER TABLE /gm) ?? []).length);
+      }
+    });
+  }
+
+  it('타입 글자는 문장을 끝내거나 문자열·주석을 여는 기호를 받지 않는다', () => {
+    const bad = [
+      'INT; DROP TABLE x',
+      "INT DEFAULT '",
+      "VARCHAR(10) DEFAULT 'a\\'",
+      'INT DEFAULT $$',
+      'INT # c',
+      'INT -- c',
+      'INT /* c */',
+      'INT)',
+      'INT DEFAULT "x',
+      'INT `',
+      'INT\rDROP',
+      'INT DROP',
+    ];
+    for (const type of bad) {
+      const out = sql('T(_a_)', { T: { a: { type } } }, 'postgresql').sql;
+      expect(out, JSON.stringify(type)).toContain(TYPE_PLACEHOLDER);
+    }
+    expect(sql('T(_a_)', { T: { a: { type: "ENUM('a','b')" } } }, 'mysql').sql).toContain("ENUM('a','b')");
   });
 });

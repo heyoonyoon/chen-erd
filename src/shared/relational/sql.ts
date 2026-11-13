@@ -26,8 +26,20 @@ export function isSqlDialect(value: unknown): value is SqlDialect {
 
 /** 식별자를 방언의 따옴표로 묶는다. 한글 이름과 예약어가 그대로 쓰이도록 언제나 묶는다 */
 export function quoteIdentifier(name: string, dialect: SqlDialect): string {
-  if (dialect === 'mysql') return '`' + name.replace(/`/g, '``') + '`';
-  return '"' + name.replace(/"/g, '""') + '"';
+  // 어느 DBMS도 식별자에 NUL을 받지 않는다. 줄바꿈은 주석 줄에 이름이 들어갈 때 주석을 끝내므로 공백으로 바꾼다
+  const clean = name.replace(/\u0000/g, '').replace(LINE_BREAKS, ' ');
+  if (dialect === 'mysql') return '`' + clean.replace(/`/g, '``') + '`';
+  // Oracle의 따옴표 식별자에는 큰따옴표를 넣을 방법이 없다(두 번 적기를 받지 않는다). 빼고 묶는다
+  if (dialect === 'oracle') return '"' + clean.replace(/"/g, '') + '"';
+  return '"' + clean.replace(/"/g, '""') + '"';
+}
+
+/** 줄 주석(--)을 끝낼 수 있는 글자. PostgreSQL은 \r도 줄 끝으로 본다 */
+const LINE_BREAKS = /[\r\n\v\f\u0085\u2028\u2029]/g;
+
+/** 주석 줄에 넣는 사람이 적은 글자. 줄을 끝내는 글자를 공백으로 바꿔 주석 밖으로 나가지 못하게 한다 */
+function commentText(text: string): string {
+  return text.replace(/\u0000/g, '').replace(LINE_BREAKS, ' ');
 }
 
 /** 표준 타입 이름을 방언의 타입으로. 모르는 글자(사용자가 적은 타입)는 그대로 둔다 */
@@ -180,7 +192,7 @@ export function toSql(schema: RelSchema, settings: ColumnSettings, dialect: SqlD
   }
   if (options.listMissingTypes && missingTypes.length > 0) {
     out.push(`-- 타입을 정하지 않은 컬럼이 ${missingTypes.length}개 있습니다. 타입을 정하기 전에는 이 SQL이 실행되지 않습니다.`);
-    for (const m of missingTypes) out.push(`--   ${m.table}.${m.column}`);
+    for (const m of missingTypes) out.push(`--   ${commentText(m.table)}.${commentText(m.column)}`);
   }
   if (index.tables.length === 0) out.push('', '-- 관계 모델 글에 테이블이 없습니다.');
   out.push(...blocks);

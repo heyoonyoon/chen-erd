@@ -30,6 +30,8 @@ export default defineConfig({
       MAX_CONNECTIONS_PER_IP: '0',
       ROOM_CREATE_INTERVAL_MS: '0',
       API_REQUESTS_PER_MINUTE: '0',
+      // 관리자 페이지는 열지 않는다(로컬에서 이미 떠 있는 서버의 9000번과 부딪히지 않게)
+      ADMIN_PORT: '0',
     },
   },
 });

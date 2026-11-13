@@ -16,6 +16,10 @@
  *
  * MCP(AI 도구가 쓴다. src/server/mcp.ts)
  *   POST /mcp                     Streamable HTTP. 세션과 인증이 없다
+ *
+ * 지표(src/server/stats.ts)
+ *   POST /api/t                   브라우저가 sendBeacon으로 보내는 작은 이벤트. 허용된 이름만 세고 나머지는 버린다. 언제나 204
+ *   관리자 페이지와 지표 조회는 이 포트에 없다(따로 연 관리자 포트, src/server/admin.ts). /admin, /stats는 여기서 404다
  */
 import path from 'node:path';
 import express, { type Express, type Request, type RequestHandler } from 'express';
@@ -31,7 +35,9 @@ import { getEdges, getNodes, getTitle } from '../shared/ydoc';
 import { clientIp } from './limits';
 import { mountMcp, type McpDeps } from './mcp';
 import { MAX_MODEL_BYTES, MAX_NODES, modelNodeCount, writeModel, type WithDoc } from './model';
+import type { StatsCollector } from './stats';
 import { RoomUnavailableError } from './sync';
+import { MAX_TELEMETRY_BYTES, TELEMETRY_PATH } from '../shared/telemetry';
 
 /** MCP가 쓰는 것(요청 제한, 밖에서 보이는 주소, 로그)은 McpDeps에 적혀 있다 */
 export interface HttpDeps extends McpDeps {
@@ -49,6 +55,10 @@ export interface HttpDeps extends McpDeps {
   tryCreateRoom(ip: string, roomId: string): boolean;
   /** 모델 API 요청 하나를 센다. 받아도 되면 0, 아니면 다시 보낼 수 있을 때까지 남은 초 */
   takeApiRequest(ip: string): number;
+  /** 지표를 모으는 곳. 없으면 지표를 세지 않는다(POST /api/t는 그래도 204) */
+  metrics?: StatsCollector;
+  /** 지표 이벤트 하나를 센다(요청 제한). 받아도 되면 0 */
+  takeTelemetryRequest?(ip: string): number;
 }
 
 function isUnder(pathname: string, prefix: string): boolean {
@@ -83,6 +93,30 @@ function problemJson(p: RelProblem): { severity: RelProblem['severity']; line: n
   return { severity: p.severity, line: p.line, column: p.column, message: problemText(p, 'en') };
 }
 
+/**
+ * 지표 이벤트를 보낸 페이지가 이 앱인지. 다른 사이트가 숫자를 부풀리지 못하게 Origin을 본다.
+ * Origin이 있으면 요청의 Host(같은 출처)나 PUBLIC_URL과 같아야 한다. 없으면(오래된 브라우저 등) 받되 요청 제한으로 막는다.
+ */
+export function telemetryOriginAllowed(req: Request, publicUrl?: string): boolean {
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  if (host === req.headers.host) return true;
+  if (publicUrl) {
+    try {
+      if (host === new URL(publicUrl).host) return true;
+    } catch {
+      // 아래로
+    }
+  }
+  return false;
+}
+
 export function createApp(deps: HttpDeps): Express {
   const staticDir = path.resolve(deps.staticDir);
   const assetsDir = path.join(staticDir, 'assets') + path.sep;
@@ -92,8 +126,24 @@ export function createApp(deps: HttpDeps): Express {
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // 방 주소는 비밀 링크다. 다른 사이트로 넘어갈 때 경로가 Referer로 새지 않게 한다
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // 다른 사이트가 앱을 iframe에 넣어 누르게 만드는 것(클릭재킹)을 막는다
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
     next();
   });
+
+  const metrics = deps.metrics;
+  if (metrics) {
+    // 서버 오류 수. 응답이 끝날 때 상태 코드만 본다
+    app.use((_req, res, next) => {
+      res.once('finish', () => {
+        if (res.statusCode >= 500) metrics.serverError();
+      });
+      next();
+    });
+  }
 
   // 방은 주소를 받은 사람만 들어오는 곳이고 API는 화면이 아니다. 둘 다 검색에 나오지 않게 한다.
   // robots.txt에서 /r/ 을 막지 않는 것도 검색 로봇이 이 표시를 읽게 하기 위해서다.
@@ -150,6 +200,7 @@ export function createApp(deps: HttpDeps): Express {
       return;
     }
     const text = await deps.withDoc(id, (doc) => diagramToText(getNodes(doc), getEdges(doc), getTitle(doc) || undefined));
+    metrics?.cliCall('pull');
     res.type('text/plain; charset=utf-8').send(text);
   });
 
@@ -159,7 +210,9 @@ export function createApp(deps: HttpDeps): Express {
       res.status(404).json({ ok: false, error: 'not-found' });
       return;
     }
-    res.json(await deps.withDoc(id, (doc) => ({ title: getTitle(doc), nodes: getNodes(doc), edges: getEdges(doc) })));
+    const diagram = await deps.withDoc(id, (doc) => ({ title: getTitle(doc), nodes: getNodes(doc), edges: getEdges(doc) }));
+    metrics?.cliCall('diagram');
+    res.json(diagram);
   });
 
   app.get('/api/rooms/:id/relational', guardRoom, async (req, res) => {
@@ -169,6 +222,7 @@ export function createApp(deps: HttpDeps): Express {
       return;
     }
     const text = await deps.withDoc(id, (doc) => toMarkup(readRelationalSource(doc)));
+    metrics?.cliCall('relational');
     res.type('text/plain; charset=utf-8').send(text);
   });
 
@@ -207,6 +261,13 @@ export function createApp(deps: HttpDeps): Express {
       setRelationalSource(doc, source, 'api');
       return before !== JSON.stringify(readRelationalSource(doc));
     });
+    if (metrics) {
+      metrics.cliCall('relational-push');
+      if (changed) {
+        metrics.aiRoom(id, 'modify');
+        if (schema.tables.length > 0) metrics.relationalWritten(id);
+      }
+    }
     res.json({ ok: true, room: id, changed, tables: schema.tables.length, problems: problems.map(problemJson) });
   });
 
@@ -229,6 +290,7 @@ export function createApp(deps: HttpDeps): Express {
       const result = toSql(schema, readColumnSettings(doc), dialect, { title: getTitle(doc) || undefined, listMissingTypes: true, textErrors: errors });
       return { ...result, errors };
     });
+    metrics?.cliCall('sql');
     res.setHeader('X-Missing-Types', String(out.missingTypes.length));
     res.setHeader('X-Relational-Errors', String(out.errors));
     res.type('text/plain; charset=utf-8').send(out.sql);
@@ -268,6 +330,10 @@ export function createApp(deps: HttpDeps): Express {
       res.status(422).json({ ok: false, error: 'too-large' });
       return;
     }
+    if (metrics) {
+      metrics.cliCall(created ? 'new' : 'push');
+      metrics.aiRoom(id, created ? 'create' : 'modify');
+    }
     res.json({ ok: true, room: id, created, ...outcome });
   });
 
@@ -283,6 +349,31 @@ export function createApp(deps: HttpDeps): Express {
       return;
     }
     next(err);
+  });
+
+  // ───────────────────────── 지표 이벤트 ─────────────────────────
+
+  // sendBeacon은 text/plain으로 보낸다(미리 묻는 요청이 없다). 형식과 상관없이 작은 바이트로 받는다
+  const readTelemetry = express.raw({ type: () => true, limit: MAX_TELEMETRY_BYTES });
+  app.post(TELEMETRY_PATH, (req, res, next) => {
+    // 요청 제한에 걸리면 본문을 읽지 않고 버린다. 브라우저는 응답을 보지 않으므로 언제나 204로 답한다
+    if (!metrics || !telemetryOriginAllowed(req, deps.publicUrl) || (deps.takeTelemetryRequest?.(clientIp(req)) ?? 0) > 0) {
+      res.status(204).end();
+      return;
+    }
+    next();
+  }, readTelemetry, (req, res) => {
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    try {
+      metrics?.clientEvent(JSON.parse(raw.toString('utf8')), req.headers['user-agent']);
+    } catch {
+      // 읽을 수 없는 본문은 버린다
+    }
+    res.status(204).end();
+  });
+  app.use(TELEMETRY_PATH, (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) return next(err);
+    res.status((err as { type?: string } | null)?.type === 'entity.too.large' ? 413 : 400).end();
   });
 
   app.use('/api', (_req, res) => {
@@ -325,6 +416,15 @@ export function createApp(deps: HttpDeps): Express {
   app.use('/.well-known', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.status(404).json({ error: 'not found' });
+  });
+
+  // 관리자 화면은 공개 포트에 없다(관리자 포트에만 있다). 첫 화면이 대신 나가지 않게 404로 끝낸다
+  app.use((req, res, next) => {
+    if (isUnder(req.path, '/admin') || isUnder(req.path, '/stats') || isUnder(req.path, '/metrics')) {
+      res.status(404).type('text/plain; charset=utf-8').send('Not Found');
+      return;
+    }
+    next();
   });
 
   // 나머지 GET은 SPA 경로(/r/<id>)로 보고 index.html을 준다

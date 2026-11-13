@@ -455,16 +455,22 @@ function Cursors({ host, script, ms, state }: { host: RefObject<HTMLDivElement |
     const root = host.current;
     if (!root) return;
     const raw = makeResolver(root, t);
+    // 자리를 아직 한 번도 잴 수 없었던 순간이 있으면 그 프레임에는 포인터를 감춘다(왼쪽 위 구석에 그리지 않는다)
+    let missing = false;
     const resolve = (a: Anchor): Pt => {
       const key = JSON.stringify(a);
       const p = raw(a);
       if (p) memo.current.set(key, p);
-      return p ?? memo.current.get(key) ?? { x: 0, y: 0 };
+      const q = p ?? memo.current.get(key);
+      if (!q) missing = true;
+      return q ?? { x: 0, y: 0 };
     };
     ([0, 1] as const).forEach((who) => {
       const el = refs[who].current;
       if (!el) return;
+      missing = false;
       const p = cursorAt(script, who, ms, resolve);
+      el.style.visibility = missing ? 'hidden' : 'visible';
       el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
     });
     // 누른 자리에 퍼지는 고리

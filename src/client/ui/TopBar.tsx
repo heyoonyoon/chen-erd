@@ -33,6 +33,7 @@ import { LanguageSelect } from '../i18n/LanguageSelect';
 import { UserAvatars } from '../presence/Presence';
 import { navigate, roomUrl } from '../router';
 import { ui, useUi } from '../state/ui';
+import { track, trackExport } from '../telemetry';
 import { useIssueCount } from './IssuesPanel';
 import { LogoMark } from './LogoMark';
 import { Toaster, toast } from './toast';
@@ -341,14 +342,17 @@ function ExportMenu() {
     job: (nodes: ErdNode[], edges: ErdEdge[]) => Promise<boolean>,
     doneKey: MessageKey,
     failedKey: MessageKey,
+    kind: 'png' | 'copy_png' | 'svg',
   ) => {
     setOpen(false);
     if (busy) return;
     setBusy(true);
     try {
       const ok = await job(room.nodes.getSnapshot(), room.edges.getSnapshot());
-      if (ok) toast(t(doneKey));
-      else toast(t(failedKey), 'error');
+      if (ok) {
+        toast(t(doneKey));
+        trackExport(room.id, kind);
+      } else toast(t(failedKey), 'error');
     } catch (err) {
       toast(errorMessage(err, t(failedKey)), 'error');
     } finally {
@@ -363,6 +367,7 @@ function ExportMenu() {
     try {
       downloadJson(room.doc, `${name()}.json`);
       toast(t('toast.jsonSaved'));
+      trackExport(room.id, 'json');
     } catch (err) {
       toast(errorMessage(err, t('toast.jsonFailed')), 'error');
     }
@@ -427,7 +432,7 @@ function ExportMenu() {
             testId="export-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`), 'toast.pngSaved', 'toast.pngFailed')
+              runImage((n, ed) => downloadPng(n, ed, `${name()}.png`), 'toast.pngSaved', 'toast.pngFailed', 'png')
             }
           />
           <MenuItem
@@ -437,7 +442,7 @@ function ExportMenu() {
             testId="export-copy-png"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => copyPngToClipboard(n, ed), 'toast.clipboardCopied', 'toast.clipboardFailed')
+              runImage((n, ed) => copyPngToClipboard(n, ed), 'toast.clipboardCopied', 'toast.clipboardFailed', 'copy_png')
             }
           />
           <MenuItem
@@ -446,7 +451,7 @@ function ExportMenu() {
             testId="export-svg"
             disabled={!hasNodes || busy}
             onSelect={() =>
-              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`), 'toast.svgSaved', 'toast.svgFailed')
+              runImage((n, ed) => downloadSvg(n, ed, `${name()}.svg`), 'toast.svgSaved', 'toast.svgFailed', 'svg')
             }
           />
           <div className="topbar-menu-sep" role="separator" />
@@ -705,6 +710,7 @@ function ShareButton() {
       return;
     }
     const url = roomUrl(room.id);
+    track('share_link', { r: room.id });
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(url);

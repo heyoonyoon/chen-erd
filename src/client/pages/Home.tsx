@@ -10,6 +10,7 @@ import { APP_NAME, formatDateTime, formatNumber, useT } from '../i18n';
 import { LanguageSelect } from '../i18n/LanguageSelect';
 import { forgetRoom, getRecentRooms, type RecentRoom } from '../identity';
 import { navigate, newRoomId, roomPath } from '../router';
+import { noteCreated, track } from '../telemetry';
 import { LogoMark } from '../ui/LogoMark';
 import { Toaster } from '../ui/toast';
 import { REPO_URL, formatStars, useGithubStars } from './githubStars';
@@ -82,7 +83,15 @@ export function Home() {
     };
   }, []);
 
-  const createRoom = () => navigate(roomPath(newRoomId()));
+  useEffect(() => {
+    track('home_view');
+  }, []);
+
+  const createRoom = () => {
+    const id = newRoomId();
+    noteCreated(id);
+    navigate(roomPath(id));
+  };
 
   const join = () => {
     const id = extractRoomId(joinValue);

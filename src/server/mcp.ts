@@ -40,6 +40,11 @@ export interface McpDeps {
   publicUrl?: string;
   /** 서버 로그에 한 줄을 남긴다 */
   log?(message: string): void;
+  /** 지표. 도구 호출 수와 AI가 만들거나 고친 방을 센다 */
+  metrics?: {
+    mcpCall(tool: string): void;
+    aiRoom(roomId: string, kind: 'create' | 'modify'): void;
+  };
 }
 
 /**
@@ -96,18 +101,19 @@ export function publicOrigin(req: IncomingMessage, configured?: string): string 
   return `http://localhost:${req.socket.localPort ?? 80}`;
 }
 
-/** 본문이 도구 호출인지와 그 요청 id. 읽을 수 없으면 도구 호출이 아닌 것으로 본다 */
-function peek(raw: Buffer): { toolCall: boolean; id: string | number | null } {
+/** 본문이 도구 호출인지와 그 요청 id, 도구 이름. 읽을 수 없으면 도구 호출이 아닌 것으로 본다 */
+function peek(raw: Buffer): { toolCall: boolean; id: string | number | null; tool: string | null } {
   try {
     const value: unknown = JSON.parse(raw.toString('utf8'));
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const { method, id } = value as { method?: unknown; id?: unknown };
-      return { toolCall: method === 'tools/call', id: typeof id === 'string' || typeof id === 'number' ? id : null };
+      const { method, id, params } = value as { method?: unknown; id?: unknown; params?: { name?: unknown } };
+      const tool = method === 'tools/call' && typeof params?.name === 'string' ? params.name : null;
+      return { toolCall: method === 'tools/call', id: typeof id === 'string' || typeof id === 'number' ? id : null, tool };
     }
   } catch {
     // JSON이 아니면 SDK가 오류로 답한다
   }
-  return { toolCall: false, id: null };
+  return { toolCall: false, id: null, tool: null };
 }
 
 /** 서버 안에서 방을 직접 다루는 백엔드. 요청 하나에 하나씩 만든다 */
@@ -153,7 +159,9 @@ function hubBackend(deps: McpDeps, call: McpCall): DiagramBackend {
         // id가 겹칠 일은 사실상 없지만, 겹쳤을 때 남의 방을 덮어쓰면 안 된다
         for (let i = 0; i < 4 && !(await deps.isNewRoom(roomId)); i++) roomId = newRoomId();
         if (!(await deps.isNewRoom(roomId))) throw refusal('unavailable');
-        return write(roomId, model, { relayout: false, created: true });
+        const result = await write(roomId, model, { relayout: false, created: true });
+        deps.metrics?.aiRoom(roomId, 'create');
+        return result;
       }),
 
     read: (room) =>
@@ -166,7 +174,10 @@ function hubBackend(deps: McpDeps, call: McpCall): DiagramBackend {
     update: (room, text, { relayout }) =>
       attempt(async () => {
         const model = parse(text);
-        return write(await existing(room), model, { relayout, created: false });
+        const roomId = await existing(room);
+        const result = await write(roomId, model, { relayout, created: false });
+        deps.metrics?.aiRoom(roomId, 'modify');
+        return result;
       }),
 
     relational: (room) =>
@@ -237,8 +248,9 @@ export function mountMcp(app: Express, deps: McpDeps): void {
     const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const ip = clientIp(req);
     const call: McpCall = { ip, origin: publicOrigin(req, configured), wait: deps.takeMcpRequest(ip) };
+    const peeked = peek(body);
     if (call.wait > 0) {
-      const { toolCall, id } = peek(body);
+      const { toolCall, id } = peeked;
       // 도구 호출은 모델이 읽고 기다릴 수 있도록 도구 결과로 알린다(아래에서 도구가 답한다). 나머지는 429로 돌려보낸다
       if (!toolCall) {
         res.setHeader('Retry-After', String(call.wait));
@@ -255,6 +267,7 @@ export function mountMcp(app: Express, deps: McpDeps): void {
 
     const response = await calls.run(call, () => handler.fetch(toWebRequest(req, call.origin, body, aborter.signal)));
     if (response.status >= 500) deps.log?.(`mcp request failed status=${response.status}${call.error ? ` error=${call.error}` : ''}`);
+    else if (peeked.tool && call.wait === 0 && response.status < 400) deps.metrics?.mcpCall(peeked.tool);
     res.status(response.status);
     response.headers.forEach((value, name) => res.setHeader(name, value));
     if (!response.body) {

@@ -43,6 +43,10 @@ export interface SyncOptions {
   /** ping 주기. 한 주기 동안 pong이 없으면 끊는다. 기본 30초 */
   pingIntervalMs?: number;
   log?: Logger;
+  /** 접속자가 문서를 고쳤을 때(Yjs 업데이트 하나마다). 지표용이라 가벼워야 한다 */
+  onEdit?: (roomId: string) => void;
+  /** 없던 방이 처음 저장됐을 때 */
+  onRoomCreated?: (roomId: string) => void;
 }
 
 interface Conn {
@@ -68,6 +72,8 @@ interface Room {
   /** 저장을 한 번에 하나씩만 하도록 잇는 사슬 */
   saving: Promise<void>;
   unloadTimer: NodeJS.Timeout | null;
+  /** 저장된 파일 없이 새로 연 방이고 아직 한 번도 저장하지 않았다 */
+  fresh: boolean;
 }
 
 /** 방의 문서를 내줄 수 없을 때. closing = 서버가 내려가는 중, load-failed = 저장된 파일을 읽지 못함 */
@@ -87,6 +93,8 @@ export class SyncHub {
   private readonly unloadDelayMs: number;
   private readonly pingIntervalMs: number;
   private readonly log: Logger;
+  private readonly onEdit?: (roomId: string) => void;
+  private readonly onRoomCreated?: (roomId: string) => void;
   private pingTimer: NodeJS.Timeout | null = null;
   private closing = false;
 
@@ -101,12 +109,21 @@ export class SyncHub {
     this.unloadDelayMs = opts.unloadDelayMs ?? 30_000;
     this.pingIntervalMs = opts.pingIntervalMs ?? 30_000;
     this.log = opts.log ?? (() => {});
+    this.onEdit = opts.onEdit;
+    this.onRoomCreated = opts.onRoomCreated;
   }
 
   start(): void {
     this.closing = false;
     this.pingTimer = setInterval(() => this.sweep(), this.pingIntervalMs);
     this.pingTimer.unref();
+  }
+
+  /** 접속자가 있는 방마다의 연결 수 */
+  roomSizes(): number[] {
+    const sizes: number[] = [];
+    for (const room of this.rooms.values()) if (room.conns.size > 0) sizes.push(room.conns.size);
+    return sizes;
   }
 
   stats(): { rooms: number; connections: number } {
@@ -252,6 +269,7 @@ export class SyncHub {
       saveTimer: null,
       saving: Promise.resolve(),
       unloadTimer: null,
+      fresh: false,
     };
     this.rooms.set(roomId, room);
     room.ready = this.load(room);
@@ -265,6 +283,8 @@ export class SyncHub {
         Y.applyUpdate(room.doc, data, 'load');
         // 고치지 않고 보기만 해도 "열린 방"으로 쳐서 자동 삭제 기한을 다시 센다
         void this.persistence.touch(room.id);
+      } else {
+        room.fresh = true;
       }
     } catch (err) {
       // 읽지 못한 방을 빈 문서로 열면 저장하면서 기존 파일을 덮어쓰게 된다. 방을 열지 않는다.
@@ -284,6 +304,7 @@ export class SyncHub {
       // 보낸 사람은 이미 가지고 있는 변경이다
       for (const conn of room.conns.values()) if (conn !== origin) this.send(conn, message);
       this.markDirty(room);
+      if (this.onEdit && origin && room.conns.get((origin as Conn).ws) === origin) this.onEdit(room.id);
     });
 
     room.awareness.on(
@@ -448,6 +469,10 @@ export class SyncHub {
       room.dirty = false;
       try {
         await this.persistence.save(room.id, Y.encodeStateAsUpdate(room.doc));
+        if (room.fresh) {
+          room.fresh = false;
+          this.onRoomCreated?.(room.id);
+        }
       } catch (err) {
         if (!room.dirty) room.dirtySince = Date.now();
         room.dirty = true;

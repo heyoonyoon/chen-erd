@@ -48,6 +48,7 @@ import { CellMenu, TYPE_OPTIONS } from './pickers';
 import { ColumnSettingsTable, SqlCode, type SettingsTable } from './SqlParts';
 import { DIALECTS } from './storage';
 import { UNDERLINE_KEYS } from './yTextBinding';
+import { track } from '../telemetry';
 
 export { paneTitleKey, PaneIcon } from './paneMeta';
 
@@ -456,7 +457,10 @@ export function SqlPane() {
         label={t('sqlView.copy')}
         testId="sql-copy"
         disabled={empty}
-        onClick={() => copyWithToast(result.sql, t('sqlView.copied'), t('toast.clipboardFailed'))}
+        onClick={() => {
+          track('sql_copy', { r: room.id });
+          void copyWithToast(result.sql, t('sqlView.copied'), t('toast.clipboardFailed'));
+        }}
       />
       <HeadButton
         icon={icons.download}
@@ -465,8 +469,10 @@ export function SqlPane() {
         disabled={empty}
         onClick={() => {
           const name = `${safeFilename(title)}.sql`;
-          if (downloadText(result.sql, name, 'application/sql')) toast(t('sqlView.downloaded', { file: name }));
-          else toast(t('sqlView.downloadFailed'), 'error');
+          if (downloadText(result.sql, name, 'application/sql')) {
+            toast(t('sqlView.downloaded', { file: name }));
+            track('sql_download', { r: room.id });
+          } else toast(t('sqlView.downloadFailed'), 'error');
         }}
       />
     </>

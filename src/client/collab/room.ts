@@ -6,6 +6,7 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import type { Awareness } from 'y-protocols/awareness';
 import type { ErdEdge, ErdNode, Presence, UserInfo } from '../../shared/types';
+import { anonId } from '../telemetry';
 import { LOCAL_ORIGIN, getEdgesMap, getMetaMap, getNodesMap, readEdge, readNode, type YElementMap } from './docOps';
 
 /**
@@ -85,7 +86,8 @@ function wsBaseUrl(): string {
 
 export function createRoom(roomId: string, user: UserInfo): Room {
   const doc = new Y.Doc();
-  const provider = new WebsocketProvider(wsBaseUrl(), roomId, doc, { disableBc: false });
+  // a = 지표용 익명 ID(무작위 값). 서버는 해시한 값만 센다
+  const provider = new WebsocketProvider(wsBaseUrl(), roomId, doc, { disableBc: false, params: { a: anonId() } });
   const awareness = provider.awareness;
 
   const initial: Presence = { user, cursor: null, selection: [], editing: null };

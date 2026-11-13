@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from 'react';
 import { nanoid } from 'nanoid';
 import { ROOM_ID_PATTERN } from '../shared/types';
+import { noteNavigation } from './telemetry';
 
 export type Route = { page: 'home' } | { page: 'room'; roomId: string };
 
@@ -24,6 +25,7 @@ function update(): void {
 if (typeof window !== 'undefined') window.addEventListener('popstate', update);
 
 export function navigate(path: string): void {
+  noteNavigation();
   history.pushState(null, '', path);
   update();
 }

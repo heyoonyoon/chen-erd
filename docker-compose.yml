@@ -18,9 +18,18 @@ services:
       HOST: 0.0.0.0
       PORT: "8787"
       DATA_DIR: /data
+      # 관리자 페이지(서비스 지표). 컨테이너 안에서는 0.0.0.0으로 열고, 호스트에서는 아래처럼 127.0.0.1에만 잇는다.
+      # Caddy는 이 포트로 넘기지 않는다. 보려면 SSH 터널(scripts/admin-tunnel.sh)로 들어간다.
+      ADMIN_PORT: "9000"
+      ADMIN_HOST: 0.0.0.0
+      # 비밀 값은 .env에만 둔다(.env.example 참고). 비밀번호 해시가 없으면 관리자 페이지에 로그인할 수 없다
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      STATS_SALT: ${STATS_SALT:-}
     ports:
       # 호스트 쪽 주소. 기본은 모든 인터페이스의 80번.
       - "${APP_PUBLISH:-80}:8787"
+      # 관리자 페이지. 반드시 127.0.0.1에만 묶는다(인터넷에 열지 않는다)
+      - "127.0.0.1:9000:9000"
     volumes:
       - erd-data:/data
     logging:
