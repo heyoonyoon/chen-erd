@@ -33,6 +33,10 @@ permissions:
 env:
   IMAGE_NAME: ghcr.io/heyoonyoon/modelll
   APP_DIR: /opt/chen-erd
+  # 서버에는 SSH가 아니라 AWS Systems Manager(Session Manager)로 명령을 보낸다. 22번 포트는 닫혀 있다.
+  AWS_REGION: ap-northeast-2
+  EC2_INSTANCE_ID: i-0174bd666d2204aaa
+  AWS_DEPLOY_ROLE: arn:aws:iam::265213224636:role/modelll-github-deploy
 
 jobs:
   image:
@@ -56,21 +60,6 @@ jobs:
       sha: ${{ steps.commit.outputs.sha }}
       version: ${{ steps.commit.outputs.version }}
     steps:
-      - name: 배포 설정 확인
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        run: |
-          missing=()
-          [ -n "$EC2_HOST" ] || missing+=("EC2_HOST")
-          [ -n "$EC2_USER" ] || missing+=("EC2_USER")
-          [ -n "$EC2_SSH_KEY" ] || missing+=("EC2_SSH_KEY")
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::저장소 시크릿이 비어 있습니다: ${missing[*]}. Settings > Secrets and variables > Actions에서 등록한 뒤 다시 실행하십시오."
-            exit 1
-          fi
-
       # CI가 끝나서 실행된 경우에는 CI가 검증한 바로 그 커밋을 배포한다.
       - uses: actions/checkout@v7
         with:
@@ -131,7 +120,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      packages: read
+      # GitHub이 발급하는 짧은 토큰으로 AWS 역할을 잠깐 빌린다(저장된 AWS 키나 SSH 키가 없다)
+      id-token: write
     env:
       SHA: ${{ needs.image.outputs.sha }}
       VERSION: ${{ needs.image.outputs.version }}
@@ -140,79 +130,53 @@ jobs:
         with:
           ref: ${{ needs.image.outputs.sha }}
 
-      - name: SSH 준비
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_PORT: ${{ secrets.EC2_PORT }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
-        run: |
-          port="${EC2_PORT:-22}"
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-          # 호스트 키는 반드시 검증한다. EC2_KNOWN_HOSTS 시크릿이 있으면 그 값만 믿고,
-          # 없으면 이번 실행에서 읽어 온 키로 고정한다(이후의 모든 ssh, scp가 같은 키를 요구한다).
-          if [ -n "$EC2_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$EC2_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
-          else
-            echo "::notice::EC2_KNOWN_HOSTS 시크릿이 없어 ssh-keyscan으로 호스트 키를 읽어 옵니다. 키를 고정하려면 README의 배포 절을 참고하십시오."
-            ssh-keyscan -T 15 -p "$port" "$EC2_HOST" > ~/.ssh/known_hosts 2>/dev/null || true
-          fi
-          if [ ! -s ~/.ssh/known_hosts ]; then
-            echo "::error::호스트 키를 얻지 못했습니다. EC2_HOST와 EC2_PORT, 보안 그룹의 SSH 인바운드 규칙을 확인하십시오."
+      # 설정 파일을 묶어 명령에 담아 보내고, 서버에서 풀어 놓은 뒤 이미지를 교체하고 헬스 체크까지 한다.
+      # 명령은 root로 돌지만 파일과 docker는 원래 주인(ec2-user)으로 다룬다. 이미지는 공개 패키지라 로그인하지 않는다.
+      - name: 배포 명령 보내기
+        id: send
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-zA-Z.]+$ ]] || { echo "::error::버전 값이 이상합니다: $VERSION"; exit 1; }
+          bundle="$(tar czf - docker-compose.yml .env.example deploy/Caddyfile deploy/remote-deploy.sh deploy/backup.sh | base64 -w0)"
+          script=$(cat <<EOF
+          set -euo pipefail
+          tmp=\$(mktemp -d)
+          echo '${bundle}' | base64 -d | tar xzf - -C "\$tmp"
+          install -d -o ec2-user -g ec2-user '${APP_DIR}' '${APP_DIR}/deploy' '${APP_DIR}/backups'
+          install -o ec2-user -g ec2-user -m 644 "\$tmp/docker-compose.yml" "\$tmp/.env.example" '${APP_DIR}/'
+          install -o ec2-user -g ec2-user -m 644 "\$tmp/deploy/Caddyfile" '${APP_DIR}/deploy/'
+          install -o ec2-user -g ec2-user -m 755 "\$tmp/deploy/remote-deploy.sh" "\$tmp/deploy/backup.sh" '${APP_DIR}/deploy/'
+          rm -rf "\$tmp"
+          runuser -u ec2-user -- env APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' up '${VERSION}'
+          runuser -u ec2-user -- env APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' health 60
+          EOF
+          )
+          params="$(jq -n --arg s "$script" '{commands: [$s], executionTimeout: ["600"]}')"
+          id="$(aws ssm send-command --instance-ids "$EC2_INSTANCE_ID" --document-name AWS-RunShellScript \
+            --comment "modelll deploy ${VERSION}" --parameters "$params" --query Command.CommandId --output text)"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: 배포 결과 기다리기
+        env:
+          COMMAND_ID: ${{ steps.send.outputs.id }}
+        run: |
+          for _ in $(seq 1 120); do
+            status="$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)"
+            case "$status" in
+              Pending|InProgress|Delayed) sleep 5 ;;
+              *) break ;;
+            esac
+          done
+          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text || true
+          if [ "$status" != "Success" ]; then
+            echo "::error::서버에서 배포가 끝나지 않았습니다(상태: $status)."
             exit 1
           fi
-          chmod 600 ~/.ssh/known_hosts
-
-          {
-            echo "Host ec2"
-            echo "  HostName ${EC2_HOST}"
-            echo "  User ${EC2_USER}"
-            echo "  Port ${port}"
-            echo "  IdentityFile ~/.ssh/deploy_key"
-            echo "  IdentitiesOnly yes"
-            echo "  StrictHostKeyChecking yes"
-            echo "  UserKnownHostsFile ~/.ssh/known_hosts"
-            echo "  BatchMode yes"
-            echo "  ConnectTimeout 20"
-            echo "  ServerAliveInterval 15"
-          } > ~/.ssh/config
-          chmod 600 ~/.ssh/config
-
-          ssh ec2 'docker info --format "Docker {{.ServerVersion}}" && docker compose version' || {
-            echo "::error::EC2에 접속하지 못했거나 접속한 사용자가 docker를 실행하지 못했습니다. 시크릿 값과 보안 그룹을 확인하고, 서버에서 deploy/ec2-setup.sh를 실행했는지 확인하십시오."
-            exit 1
-          }
-
-      - name: 설정 파일 복사
-        run: |
-          ssh ec2 "mkdir -p '${APP_DIR}/deploy' '${APP_DIR}/backups'"
-          scp -q docker-compose.yml .env.example "ec2:${APP_DIR}/"
-          scp -q deploy/Caddyfile deploy/remote-deploy.sh deploy/backup.sh "ec2:${APP_DIR}/deploy/"
-          ssh ec2 "chmod +x '${APP_DIR}/deploy/remote-deploy.sh' '${APP_DIR}/deploy/backup.sh'"
-
-      # 패키지가 비공개여도 내려받을 수 있도록 이 실행의 토큰으로 잠깐 로그인한다(토큰은 실행이 끝나면 무효가 된다).
-      - name: 이미지 교체
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$GHCR_TOKEN" | ssh ec2 "docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
-          ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' up '${VERSION}'"
-
-      - name: 헬스 체크
-        run: ssh ec2 "APP_DIR='${APP_DIR}' '${APP_DIR}/deploy/remote-deploy.sh' health 60"
 
       - name: 배포 결과 기록
         run: echo "배포한 이미지는 \`${IMAGE_NAME}:${VERSION}\` 이고 커밋은 \`${SHA}\` 입니다." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 정리
-        if: always()
-        run: |
-          if [ -f ~/.ssh/config ]; then
-            ssh ec2 'docker logout ghcr.io' >/dev/null 2>&1 || true
-          fi
-          rm -f ~/.ssh/deploy_key

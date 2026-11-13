@@ -1,6 +1,6 @@
 # 관리자 페이지(서비스 지표) 운영 메모
 
-관리자 페이지는 서버 안 `127.0.0.1:9000`에만 열린다. 인터넷(Caddy, 8787)에는 관리자 경로가 없고, SSH 터널로만 본다.
+관리자 페이지는 서버 안 `127.0.0.1:9000`에만 열린다. 인터넷(Caddy, 8787)에는 관리자 경로가 없고, AWS Session Manager 포트 포워딩으로만 본다. 서버의 22번(SSH) 포트는 닫혀 있고 배포도 Session Manager로 한다.
 
 ## 처음 한 번 설정
 
@@ -10,7 +10,7 @@
    node scripts/admin-password.mjs
    ```
 
-2. 서버의 `/opt/chen-erd/.env`에 두 줄을 넣는다. 해시에는 `$`가 있으니 작은따옴표로 감싼다.
+2. 서버의 `/opt/chen-erd/.env`에 두 줄을 넣는다(`aws ssm start-session --target <인스턴스>`로 서버에 들어간다). 해시에는 `$`가 있으니 작은따옴표로 감싼다.
 
    ```sh
    ADMIN_PASSWORD_HASH='scrypt$32768$8$1$...$...'
@@ -24,9 +24,11 @@
 ## 보기
 
 ```sh
-scripts/admin-tunnel.sh                      # 기본 서버 modelll.app
-MODELLL_HOST=1.2.3.4 scripts/admin-tunnel.sh # 다른 서버
+scripts/admin-tunnel.sh                                  # 기본 인스턴스
+MODELLL_INSTANCE_ID=i-xxxxxxxx scripts/admin-tunnel.sh   # 다른 인스턴스
 ```
+
+필요한 것: 이 계정으로 로그인된 AWS CLI와 `session-manager-plugin`(`brew install --cask session-manager-plugin`).
 
 터널을 열고 `http://localhost:9000`을 브라우저로 연다. 로컬 포트는 9000 그대로 쓴다(관리자 페이지가 Host를 `localhost:9000`으로만 받는다). 다른 포트로 이어야 하면 서버에 `ADMIN_PUBLIC_PORT`를 그 포트로 준다.
 
